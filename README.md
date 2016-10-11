@@ -27,6 +27,39 @@ This will use a single target location and three Direction of Arrival (DOA) meas
 	* add multiple target, data association methods
 	* add plotting features
 
+
+
+#### Nvidia, Docker, and GitLab CI ####
+
+Check your nvidia driver version
+	sudo nvidia-settings -v
+
+Create a named volume based on that version
+	sudo docker volume create --name=nvidia_driver_367.27 -d nvidia-docker
+
+Try it out
+	sudo docker run -ti --rm  --device=/dev/nvidiactl --device=/dev/nvidia-uvm --device=/dev/nvidia0 --volume=nvidia_driver_367.27:/usr/local/nvidia:ro tc/cuda:7.5-devel-centos7
+
+Using a different terminal get the container ID
+	sudo docker ps
+
+Copy in an exectuable and try it
+	sudo docker cp <executable> <containerID>:/
+
+If that works, try to update the GitLab runner
+	sudo vi /etc/gitlab-runner/config.toml
+
+Add these fields to your runner under  [runners.docker]
+	devices = ["/dev/nvidiactl", "/dev/nvidia-uvm", "/dev/nvidia0"]
+	volumes = ["/cache","nvidia_driver_367.27:/usr/local/nvidia:ro"]
+	
+Restart the runners
+	sudo gitlab-runner restart
+
+Cross your fingers....
+
+
+
 This project will be tagged for class EN-605-417 based on module deliveries which will contribute to overall project completion.
 
 #### Module 1 - 3 ####
