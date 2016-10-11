@@ -31,6 +31,8 @@ This will use a single target location and three Direction of Arrival (DOA) meas
 
 #### Nvidia, Docker, and GitLab CI ####
 
+If you get as far as having successfully installed Docker, successfully installed the GitLab Runner client, and successfully pulled down an Nvidia Docker image, you might think you're good to go. You might even be tricked like I was into thinking everything was working when you got a green check for a CI build and test. But did it really work? I realized after my tests mysteriously started failing that while the stock Nvidia Docker image can *build* your code (unless you've included libraries that aren't there) it can't actually *run* your code, at least not the way that the gitlab-runner client starts it. The problem should have been obvious had I not been blinded by the green checks - Nvidia has to explicitly pass a driver and device handle to Docker which it magically does using the nvidia-docker wrapper command. The problem is that gitlab-runner has no idea this exists or that it needs to specify additional commands, and there doesn't seem to be any explanation of how to do this in the YAML file. Luckily Nvidia has shown a way to get what we want using the normal docker command with the volume and device flags which are supported by gitlab-runner by editing its toml file.
+
 Check your nvidia driver version
 	sudo nvidia-settings -v
 
@@ -40,10 +42,10 @@ Create a named volume based on that version
 Try it out
 	sudo docker run -ti --rm  --device=/dev/nvidiactl --device=/dev/nvidia-uvm --device=/dev/nvidia0 --volume=nvidia_driver_367.27:/usr/local/nvidia:ro tc/cuda:7.5-devel-centos7
 
-Using a different terminal get the container ID
+Using a second terminal get the running container ID
 	sudo docker ps
 
-Copy in an exectuable and try it
+Copy in an exectuable from the second terminal and try to run it from the first
 	sudo docker cp <executable> <containerID>:/
 
 If that works, try to update the GitLab runner
@@ -57,6 +59,28 @@ Restart the runners
 	sudo gitlab-runner restart
 
 Cross your fingers....
+
+
+
+#### Modifying Docker Images ####
+
+If you find you need to add packages/libraries to the stock Nvidia images, simply do this:
+
+Start an interactive shell in one and add packages, configuration, etc
+	$ sudo docker run -ti --rm nvidia/cuda:7.5-devel-centos7
+		# yum install lapack
+			...
+		# exit
+
+Find the container ID you just used, should be top in list
+	$ sudo docker ps -a
+
+Save the container to either the same image or a new one
+	$ sudo docker commit -m "added lapack" -a "tim c" <containerID> tc/cuda:7.5-devel-centos7
+
+You're good to go!
+
+
 
 
 
