@@ -1,0 +1,62 @@
+##### Starting cuAMC! #####
+
+
+##### Host CUDA Properties ##### 
+Runtime Version:	7050
+Driver Version:		8000
+
+
+##### GPU Device 0 Properties ##### 
+Device Name:		GeForce GTX 770
+Compute Capability:	3.0
+Multi-Processors:	8
+Threads per Warp:	32
+Threads per Block:	1024
+Registers per Block:	65536
+Shared Mem per Block:	49152
+Constant Memory:	65536
+Global Memory:		2095382528
+Max Block Dimensions:	[1024, 1024, 64]
+Max Grid Dimensions:	[2147483647, 65535, 65535]
+Concurrent Kernel Execution:		1
+Concurrent Memcpy and Kernel Execution:	1
+
+
+##### Generating Geo Scenario #####
+##### Executing C/C++ Geo Routine #####
+Predicting next parameter state (h)...
+Predicting next state Covariance (H)...
+Calculating inverse of R ...
+Total C/C++ Geolocation execution time: 0s 6981us
+
+
+##### Generating Geo Scenario #####
+
+##### Executing Geo Block/Thread Benchmarking Routine #####
+Caution, data chunk is not evenly divisible by maxThreadsPerBlock, could have issues...
+## Testing 1 blocks of 1024 threads ##
+
+##### Executing CUDA Geo Routine #####
+Allocating host memory...
+Allocating device memory...
+Copying data from host memory to GPU memory
+Memcpy from host to GPU execution time: 0.016480 ms
+
+Launching parameterPrediction CUDA kernel
+	parameterPrediction execution time: 0.016576 ms
+Launching covariancePrediction CUDA kernel
+	covariancePrediction execution time: 0.008352 ms
+
+	cublasSgetrfBatched execution time: 231.625122 ms
+
+	cublasSgetriBatched execution time: 572.007874 ms
+
+	Total matrix inversion time: 1s -195110us
+Total CUDA Geolocation execution time: 1s -31119us
+
+
+##### Completed Geo Block/Thread Benchmarking Routine #####
+Fastest parameterPrediction: 0.016576 ms using 1 blocks and 1024 threads
+Fastest covariancePrediction: 0.008352 ms using 1 blocks and 1024 threads
+
+Done

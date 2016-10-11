@@ -1,0 +1,6 @@
+device=0
+blocks=1
+threads=1024
+chunk=1
+measurements=3
+optimal=1
