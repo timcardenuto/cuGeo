@@ -24,19 +24,25 @@
 
 __global__ void parameterPrediction(float *d_locx, float *d_locy, float *d_param, float xhatx, float xhaty, int num_elements);
 
-__global__ void covariancePrediction(float *d_locx, float *d_locy, float *d_param, float *d_covx, float *d_covy, float xhatx, float xhaty, int num_elements);
+__global__ void parameterPredictionSmem(float *d_locx, float *d_locy, float *d_param, float xhatx, float xhaty, int num_elements);
 
 __global__ void covariancePrediction(float *d_locx, float *d_locy, float *d_param, float *d_cov, float xhatx, float xhaty, int num_elements);
 
+__global__ void covariancePredictionSmem(float *d_locx, float *d_locy, float *d_param, float *d_cov, float xhatx, float xhaty, int num_elements);
+
 __global__ void subtract(float *d_a, float *d_b, float *d_c, int num_elements);
+
+__global__ void subtractSmem(float *d_a, float *d_b, float *d_c, int num_elements);
 
 __global__ void semiMajMin(float *d_eigenvalues, float k, float *d_semi, int num_ellipses);
 
-void displayCmdUsage(void);
+__global__ void semiMajMinSmem(float *d_eigenvalues, float k, float *d_semi, int num_ellipses);
+
+void displayCmdUsage();
 
 void checkCmdArgs(int argc, char **argv);
 
-void parseConfig(void);
+void parseConfig();
 
 void errCheck(cudaError_t cudaError);
 

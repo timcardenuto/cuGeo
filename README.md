@@ -16,17 +16,27 @@ This will use a single target location and three Direction of Arrival (DOA) meas
 
 * add argument'--file' which reads a comma delimited file for one measurement per line in the format "<locationx>,<locationy>,<DOA>,<sigma>\n". When this input is used, the number of measurements in the file will be the total number of measurements processed by the geo-location algorithm, unless the '--measurements' arg is set which will override the total (up to the file size but not more).
 
+* get accurate benchmark for total CUDA algorithm to compare to when updating 
+* scrub algorithm for unnecessary data transfers between host and device
+* add "pinned" host memory allocations to improve data transfers
 * finish C/C++ implementation
 * fix block/thread user choice
 * improve matrix inversion routine (or use alternate means)
 * loop ILS for a count/error amount 
 
+* add streams to perform mutually exclusive kernel operations simultaneously/asynchronously
 * add loop for different target guesses, allow user to input guess (hard coded real target location)
 * add a function to auto-generate scenarios with valid target/measurement values
 * allow user to input real target location, guess, flight path, etc.
 * add multiple target, data association methods
 * add plotting features
 
+
+## Benchmarking and profiling performance ##
+
+Besides add CUDA events around every single command, the *nvprof* utility is an easy way to profile your program for timing related to CUDA calls. Simply use like this:
+
+	$ nvprof ./<executable> <args>
 
 
 ## Nvidia, Docker, and GitLab CI ##
@@ -114,7 +124,15 @@ A test report is now produced "report.txt" for every run of the program that con
 
 
 #### Module 6 ####
-Adds utilization of GPU cache based on certain parameters. The CUDA libraries cuBLAS, cuSOLVER and the C libraries BLAS, LAPACK are now included to perform the matrix operations needed by the geo-location algorithm. Functions for matrix multiplication and inversion are used and compared for both the host (C/C++) and device (CUDA) code.
+Adds utilization of GPU cache based on certain parameters. The CUDA libraries cuBLAS, cuSOLVER and the C libraries BLAS, LAPACK are now included to perform the matrix operations needed by the geo-location algorithm - a majority of the Iterated Least Squares algorithm is implemented. Functions for matrix multiplication and inversion are used and compared for both the host (C/C++) and device (CUDA) code. Versions of each kernel were added which use shared memory, and a command line flag "smem" which activates them as opposed to their other versions like this:
+
+	./cuGEO --smem --verbose 
+
+Additional command line flags were added to run iterations and prevent printed output from overwhelming the user that can be used like this:
+
+	./cuGEO --iterations 1000 --threads 1024 --blocks 32 --measurements 1024
+
+The above command will launch the geo-location algorithm with 1024 measurements, using 1024 threads and 32 blocks where possible (CUDA libraries generally optimize their own), and will iterate the entire algorithm from scratch 1000 times, collecting best, worst, and average execution times. The above command will appear to pause while it runs all iterations and at the end will print out a summary report. To see all prints use the "--verbose" flag, but be aware this will print during EVERY iteration. You can see additional details with the "--vv" flag which will perform memcpy's to print out intermediate values during the algorithm calculations - this is useful for debug when you're only passing a few measurements (< 10) and want to check calculations against MATLAB models.
 
 
 #### Module 7 ####

@@ -12,13 +12,16 @@
 // command line args
 static long int device = 0;
 static long int blocks = 1;
-static long int threads = 1;
+static long int threads = 1024;
 static long int chunk = 1;
 static int optimal = 1;
 static char *file;
 static char *config;
+static long int iterations = 1;
 static long int measurements = 3;
 static int verbose = 0;
+static int vv = 0;
+static int smem = 0;
 
 // cuda device properties
 static int maxThreadsPerBlock = 0;
@@ -37,15 +40,21 @@ static int n = 3;	// n is dimensions of sigma matrix R
 static float *R;				// measurement variance matrix
 
 // benchmarking variables
-float fastparam = 1.0;
+float fastparam = 1.0, avgparam = 0.0;
 int fastparamblock = 0, fastparamthread = 0;
-float fastcov = 1.0;
+float fastcov = 1.0, avgcov = 0.0;
 int fastcovblock = 0, fastcovthread = 0;
-
-
+float fastsemi = 1.0, avgsemi = 0.0;
+int fastsemiblock = 0, fastsemithread = 0;
+float fastsub = 1.0, avgsub = 0.0;
+int fastsubblock = 0, fastsubthread = 0;
+int fastcuexecs = 100, worstcuexecs = 0, fastcuexecblock = 0, fastcuexecthread = 0, worstcuexecblock = 0, worstcuexecthread = 0, avgcuexecs = 0;
+unsigned long  fastcuexecus = 1000000000, worstcuexecus = 0, avgcuexecus = 0;
+int fastcexecs = 100, worstcexecs = 0, avgcexecs = 0;
+unsigned long  fastcexecus = 1000000000, worstcexecus = 0, avgcexecus = 0;
 
 /* help message block */
-void displayCmdUsage(void) {
+void displayCmdUsage() {
 	puts("Usage: ./cuAMC [OPTION] \n \
 	-d	--device	Specify which GPU to use, defaults to 0. \n \
 	-b	--blocks	Number of blocks to use, defaults to 1. \n \
@@ -62,6 +71,7 @@ void displayCmdUsage(void) {
 	-m	--measurements	Number of measurements to include in the geolocation calculation \n \
 	-x	--configure		Path to configuration file. Any parameters specified on the command line will override the equivalent ones in this file \n \
 	-v	--verbose		Prints output of each kernel \n \
+	-s	--smem		Uses shared memory with kernels where possible \n \
 	--help			Display this message \n");
 	exit(1);
 }
@@ -81,13 +91,16 @@ void checkCmdArgs(int argc, char **argv) {
 			{"find-optimal",	no_argument, 	&optimal, 1},
 			{"chunk",	required_argument, 	0, 'c'},
 			{"measurements",	required_argument, 	0, 'm'},
+			{"iterations",	required_argument, 	0, 'i'},
 			{"configure",	required_argument, 	0, 'x'},
+			{"vv",	no_argument, 	&vv, 1},
 			{"verbose",	no_argument, 	&verbose, 1},
+			{"smem",	no_argument, 	&smem, 1},
 			{"help",	no_argument, 		0, 'h'},
 			{0,			0, 					0, 0},
 		};
 
-		c = getopt_long_only(argc, argv, "d:b:t:f:c:m:x:hv", long_options, &option_index);
+		c = getopt_long_only(argc, argv, "d:b:t:f:c:m:i:x:hvs", long_options, &option_index);
 
 		if (c == -1) {
             break;
@@ -139,6 +152,13 @@ void checkCmdArgs(int argc, char **argv) {
 					exit(1);
 				}
 		        break;
+       		case 'i':
+				iterations = strtoul(optarg, &ptr, 10);
+				if (strcmp(ptr,"")) {
+					printf("Value %s of option %s is not a number \n", ptr, long_options[option_index].name);
+					exit(1);
+				}
+		        break;
        		case 'f':
 				file = optarg;
 		        break;
@@ -149,6 +169,9 @@ void checkCmdArgs(int argc, char **argv) {
        		case 'v':
 				verbose = 1;
 		        break;
+       		case 's':
+				smem = 1;
+				break;
 			default:
 				displayCmdUsage();
 	    }
@@ -165,7 +188,7 @@ void checkCmdArgs(int argc, char **argv) {
 }
 
 
-void parseConfig(void) {
+void parseConfig() {
 	printf("Reading config file %s\n", config);
 	FILE *fpcfg;
 	if(config) {
@@ -209,6 +232,11 @@ void parseConfig(void) {
 				measurements = strtoul(pch, &str, 10);
 				printf("	Measurements option set to %i\n", measurements);
 
+			} else if (strcmp(pch,"iterations") == 0) {
+					pch = strtok (NULL, "=");
+					iterations = strtoul(pch, &str, 10);
+					printf("	Iterations option set to %i\n", iterations);
+
 			} else if (strcmp(pch,"optimal") == 0) {
 				pch = strtok (NULL, "=");
 				optimal= strtoul(pch, &str, 10);
@@ -216,8 +244,13 @@ void parseConfig(void) {
 
 			} else if (strcmp(pch,"verbose") == 0) {
 				pch = strtok (NULL, "=");
-				verbose= strtoul(pch, &str, 10);
+				verbose = strtoul(pch, &str, 10);
 				printf("	Verbose option set to %i\n", verbose);
+
+			} else if (strcmp(pch,"smem") == 0) {
+				pch = strtok (NULL, "=");
+				smem = strtoul(pch, &str, 10);
+				printf("	Shared Memory option set to %i\n", smem);
 
 			} else {
 				printf("Error, unknown option %s \n",pch);
@@ -274,6 +307,8 @@ void checkDeviceProperties() {
 	for (int i = 0; i < cuda_devices; i++) {
 		cudaDeviceProp prop;
 		errCheck(cudaGetDeviceProperties(&prop, i));
+		maxThreadsPerBlock = prop.maxThreadsPerBlock;
+
 		printf("\n##### GPU Device %i Properties ##### \n", i);
 		printf("Device Name:		%s\n", prop.name);
 		printf("Compute Capability:	%i.%i\n", prop.major, prop.minor);
@@ -284,7 +319,6 @@ void checkDeviceProperties() {
 		printf("Shared Mem per Block:	%i\n", prop.sharedMemPerBlock);
 		printf("Constant Memory:	%i\n", prop.totalConstMem);
 		printf("Global Memory:		%i\n", prop.totalGlobalMem);
-		maxThreadsPerBlock = prop.maxThreadsPerBlock;
 		printf("Max Block Dimensions:	[%i, %i, %i]\n", prop.maxThreadsDim[0], prop.maxThreadsDim[1], prop.maxThreadsDim[2]);
 		printf("Max Grid Dimensions:	[%i, %i, %i]\n", prop.maxGridSize[0], prop.maxGridSize[1], prop.maxGridSize[2]);
 		printf("Concurrent Kernel Execution:		%i\n", prop.concurrentKernels);
@@ -317,8 +351,8 @@ void checkDeviceProperties() {
  * Add error to measurements to use in Geo calculation
  */
 void generateScenario() {
-	printf("\n##### Generating Geo Scenario #####\n");
-	fprintf(fpreport,"\n##### Generating Geo Scenario #####\n");
+	if (verbose) { 	printf("\n##### Generating Geo Scenario #####\n");
+					fprintf(fpreport,"\n##### Generating Geo Scenario #####\n"); }
 
 	// TODO: write MATLAB script to autogenerate locations/measurements/errors for a scenario
 
@@ -364,10 +398,10 @@ void generateScenario() {
 	xhatx = 2.0*1852.0;
 	xhaty = 2.0*1852.0;
 
-	printf("Data set size: %i\n", z.size());
-	printf("N dimension size: %i\n", n);
+	if (verbose) { printf("Data set size: %i\n", z.size());
+					printf("N dimension size: %i\n", n); }
 
-	if (DEBUG || verbose) {	// print z, x, a
+	if (DEBUG || vv) {	// print z, x, a
 		printf("measured data z =\n");
 		for (int i = 0; i < n; i++) {
 			printf("	%f\n",z[i]);
@@ -387,9 +421,9 @@ void generateScenario() {
 		}
 		printf("\n");
 	}
-	printf("target location guess xhat =\n");
-	printf("	%f	%f\n",xhatx,xhaty);
-	printf("\n");
+	if (verbose) { 	printf("target location guess xhat =\n");
+					printf("	%f	%f\n",xhatx,xhaty);
+					printf("\n"); }
 }
 
 
@@ -399,22 +433,23 @@ void generateScenario() {
  */
 void cpuGeolocation() {
 
-	printf("\n##### Executing C/C++ Geo Routine #####\n");
-	fprintf(fpreport, "##### Executing C/C++ Geo Routine #####\n");
-	struct timeval tv1, tv2;
-	gettimeofday(&tv1,NULL);
+	if (verbose) { 	printf("\n##### Executing C/C++ Geo Routine #####\n");
+					fprintf(fpreport, "##### Executing C/C++ Geo Routine #####\n"); }
+
+	struct timespec tp1, tp2;
+	clock_gettime(CLOCK_REALTIME, &tp1);
 
 	// predict next parameter state (h)
-	printf("Predicting next parameter state (h)...\n");
-	fprintf(fpreport,"Predicting next parameter state (h)...\n");
+	if (verbose) { 	printf("Predicting next parameter state (h)...\n");
+					fprintf(fpreport,"Predicting next parameter state (h)...\n"); }
 	std::vector<float> h;
 	for (int i = 0; i < n; i++) {
 		h.push_back(atan2f((xhaty-ay[i]),(xhatx-ax[i])));
 	}
 	
 	// predict next state Covariance (H)
-	printf("Predicting next state Covariance (H)...\n");
-	fprintf(fpreport,"Predicting next state Covariance (H)...\n");
+	if (verbose) { 	printf("Predicting next state Covariance (H)...\n");
+					fprintf(fpreport,"Predicting next state Covariance (H)...\n"); }
 	std::vector<float> Hx;
 	std::vector<float> Hy;
 	for (int i = 0; i < n; i++) {
@@ -423,7 +458,7 @@ void cpuGeolocation() {
 	}
 
 
-	if (DEBUG || verbose) {	// print h, H
+	if (DEBUG || vv) {	// print h, H
 		printf("	h =\n");
 		for (int i = 0; i < n; i++) {
 			printf("	%f\n",h[i]);
@@ -437,8 +472,8 @@ void cpuGeolocation() {
 	}
 
 	// calculate inverse of R
-	printf("Calculating inverse of R: inv(%ix%i)\n", n, n);
-	fprintf(fpreport,"Calculating inverse of R ...\n");
+	if (verbose) { 	printf("Calculating inverse of R: inv(%ix%i)\n", n, n);
+					fprintf(fpreport,"Calculating inverse of R ...\n"); }
 	int INFO = 0;
 	int N = n;
 	int M = n;
@@ -463,7 +498,7 @@ void cpuGeolocation() {
 		exit(1);
 	}
 
-	if (DEBUG || verbose) {	// check inv(R) calculation
+	if (DEBUG || vv) {	// check inv(R) calculation
 		printf("Inverse of R = \n");
 		for (int i = 0; i < n; i++) {
 			for (int j = 0; j < n; j++) {
@@ -476,13 +511,7 @@ void cpuGeolocation() {
 	free(A);
 	free(WORK);
 
-	gettimeofday(&tv2,NULL);
-	printf("Total C/C++ Geolocation execution time: %ds %dus\n", (tv2.tv_sec-tv1.tv_sec), (tv2.tv_usec-tv1.tv_usec));
-	fprintf(fpreport,"Total C/C++ Geolocation execution time: %ds %dus\n", (tv2.tv_sec-tv1.tv_sec), (tv2.tv_usec-tv1.tv_usec));
 
-	printf("\n");
-	fprintf(fpreport,"\n");
-	fflush(fpreport);
 	//TODO finish host version
 	// calculate eig(P)
 	// Assume P is always 2x2
@@ -508,6 +537,34 @@ void cpuGeolocation() {
 		printf("Error during matrix inversion\n");
 		exit(1);
 	}*/
+
+
+	clock_gettime(CLOCK_REALTIME, &tp2);
+	time_t s;
+	unsigned long us;
+	if (tp2.tv_nsec < tp1.tv_nsec) {
+		s = (tp2.tv_sec-tp1.tv_sec) - 1;
+		us = (tp2.tv_nsec + (1000000000 - tp1.tv_nsec)) / 1000;
+	} else {
+		s = tp2.tv_sec-tp1.tv_sec;
+		us = (tp2.tv_nsec-tp1.tv_nsec) / 1000;
+	}
+
+	avgcexecs = avgcexecs + s;
+	avgcexecus = avgcexecus + us;
+	if (s < fastcexecs || (s == fastcexecs && us < fastcexecus)) {
+		fastcexecs = s;
+		fastcexecus = us;
+	} else if (s > worstcexecs || (s == worstcexecs && us > fastcexecus)) {
+		worstcexecs = s;
+		worstcexecus = us;
+	}
+
+	if (verbose) { 	printf("Total C/C++ Geolocation execution time: %i s  %lu us\n", (int)s, us);
+					fprintf(fpreport,"Total C/C++ Geolocation execution time: %i s  %lu us\n", (int)s, us);
+					printf("\n");
+					fprintf(fpreport,"\n");
+					fflush(fpreport); }
 }
 
 
@@ -518,10 +575,10 @@ void cpuGeolocation() {
 void cudaGeolocation() {
 	//###############################################################################################
 	// CUDA version of DOA Geolocation ---------------------------------------------------
-	printf("\n##### Executing CUDA Geo Routine #####\n");
-	fprintf(fpreport,"\n##### Executing CUDA Geo Routine #####\n");
-	struct timeval tv1, tv2;
-	gettimeofday(&tv1,NULL);
+	if (verbose) { 	printf("\n##### Executing CUDA Geo Routine #####\n");
+					fprintf(fpreport,"\n##### Executing CUDA Geo Routine #####\n"); }
+	struct timespec tp1, tp2;
+	clock_gettime(CLOCK_REALTIME, &tp1);
 
     cublasHandle_t cublas_handle;
     cublasStatus_t cublas_status = CUBLAS_STATUS_SUCCESS;
@@ -538,8 +595,8 @@ void cudaGeolocation() {
 	unsigned int Pmem_size = sizeof(float) * 2*2;		// P is always a 2x2 matrix
 
 	// allocate host memory
-	printf("Allocating host memory...\n");
-	fprintf(fpreport,"Allocating host memory...\n");
+	if (verbose) { 	printf("Allocating host memory...\n");
+					fprintf(fpreport,"Allocating host memory...\n"); }
 	float *h_locx = (float *)malloc(mem_size);
 	float *h_locy = (float *)malloc(mem_size);
 
@@ -550,8 +607,8 @@ void cudaGeolocation() {
 	}
 
 	// allocate target GPU device memory
-	printf("Allocating device memory...\n");
-	fprintf(fpreport,"Allocating device memory...\n");
+	if (verbose) { 	printf("Allocating device memory...\n");
+					fprintf(fpreport,"Allocating device memory...\n"); }
 	float *d_locx;
 	float *d_locy;
 	float *d_h;
@@ -563,8 +620,8 @@ void cudaGeolocation() {
 	cudaMalloc((void **) &d_H, mem_size*2);
 
 	// copy host memory to device
-	printf("Copying data from host memory to GPU memory...\n");
-	fprintf(fpreport,"Copying data from host memory to GPU memory\n");
+	if (verbose) { 	printf("Copying data from host memory to GPU memory...\n");
+					fprintf(fpreport,"Copying data from host memory to GPU memory\n"); }
 	cudaEvent_t start, stop;
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
@@ -575,36 +632,41 @@ void cudaGeolocation() {
 	cudaEventSynchronize(stop);
 	float elapsedTime = 0;
 	cudaEventElapsedTime(&elapsedTime, start, stop);
-	printf("Memcpy from host to GPU execution time: %f ms\n", elapsedTime);
-	fprintf(fpreport,"Memcpy from host to GPU execution time: %f ms\n", elapsedTime);
+	if (verbose) { 	printf("Memcpy from host to GPU execution time: %f ms\n", elapsedTime);
+					fprintf(fpreport,"Memcpy from host to GPU execution time: %f ms\n", elapsedTime); }
 
 
 	//#####################################################################
 	// execute parameterPrediction kernel
-	printf("\nLaunching parameterPrediction CUDA kernel\n");
-	fprintf(fpreport,"\nLaunching parameterPrediction CUDA kernel\n");
+	if (verbose) { 	printf("\nLaunching parameterPrediction CUDA kernel\n");
+					fprintf(fpreport,"\nLaunching parameterPrediction CUDA kernel\n"); }
 	cudaEventRecord(start, 0);
-	parameterPrediction<<< blocks, threads >>>(d_locx, d_locy, d_h, xhatx, xhaty, n);
+	if (smem) {
+		parameterPredictionSmem<<< blocks, threads, 2*n*sizeof(float) >>>(d_locx, d_locy, d_h, xhatx, xhaty, n);
+	} else {
+		parameterPrediction<<< blocks, threads >>>(d_locx, d_locy, d_h, xhatx, xhaty, n);
+	}
 	cudaEventRecord(stop, 0);
 	cudaEventSynchronize(stop);
 	cudaEventElapsedTime(&elapsedTime, start, stop);
-	printf("	parameterPrediction execution time: %f ms\n", elapsedTime);
-	fprintf(fpreport,"	parameterPrediction execution time: %f ms\n", elapsedTime);
+	if (verbose) { 	printf("	parameterPrediction execution time: %f ms\n", elapsedTime);
+					fprintf(fpreport,"	parameterPrediction execution time: %f ms\n", elapsedTime); }
+	avgparam = avgparam + elapsedTime;
 	if (elapsedTime < fastparam) {
 		fastparam = elapsedTime;
 		fastparamblock = blocks;
 		fastparamthread = threads;
 	}
 
-	if (DEBUG || verbose) {	// check CUDA h calculation
+	if (DEBUG || vv) {	// check CUDA h calculation
 		float *h_param = (float *)malloc(mem_size);
-		printf("\nCopying processed data from GPU to host memory\n");
+		printf("	Copying processed data from GPU to host memory\n");
 		cudaEventRecord(start, 0);
 		cudaMemcpy(h_param, d_h, mem_size, cudaMemcpyDeviceToHost);
 		cudaEventRecord(stop, 0);
 		cudaEventSynchronize(stop);
 		cudaEventElapsedTime(&elapsedTime, start, stop);
-		printf("Memcpy from GPU to host execution time: %f ms\n", elapsedTime);
+		printf("	Memcpy from GPU to host execution time: %f ms\n", elapsedTime);
 		printf("	h =\n");
 		for (int i = 0; i < n; i++) {
 			printf("	%f\n",h_param[i]);
@@ -616,30 +678,35 @@ void cudaGeolocation() {
 	// execute covariancePrediction kernel
 	// INPUT	h is Nx1
 	// OUTPUT	H is Nx2
-	printf("\nLaunching covariancePrediction CUDA kernel\n");
-	fprintf(fpreport,"Launching covariancePrediction CUDA kernel\n");
+	if (verbose) { 	printf("\nLaunching covariancePrediction CUDA kernel\n");
+					fprintf(fpreport,"Launching covariancePrediction CUDA kernel\n"); }
 	cudaEventRecord(start, 0);
-	covariancePrediction<<< blocks, threads >>>(d_locx, d_locy, d_h, d_H, xhatx, xhaty, n);
+	if(smem) {
+		covariancePredictionSmem<<< blocks, threads, 3*n*sizeof(float) >>>(d_locx, d_locy, d_h, d_H, xhatx, xhaty, n);
+	} else {
+		covariancePrediction<<< blocks, threads >>>(d_locx, d_locy, d_h, d_H, xhatx, xhaty, n);
+	}
 	cudaEventRecord(stop, 0);
 	cudaEventSynchronize(stop);
 	cudaEventElapsedTime(&elapsedTime, start, stop);
-	printf("	covariancePrediction execution time: %f ms\n", elapsedTime);
-	fprintf(fpreport,"	covariancePrediction execution time: %f ms\n\n", elapsedTime);
+	if (verbose) { 	printf("	covariancePrediction execution time: %f ms\n", elapsedTime);
+					fprintf(fpreport,"	covariancePrediction execution time: %f ms\n\n", elapsedTime); }
+	avgcov = avgcov + elapsedTime;
 	if (elapsedTime < fastcov) {
 		fastcov = elapsedTime;
 		fastcovblock = blocks;
 		fastcovthread = threads;
 	}
 
-	if (DEBUG || verbose) {	// check CUDA H calculation
+	if (DEBUG || vv) {	// check CUDA H calculation
 		float *h_H = (float *)malloc(mem_size*2);
-		printf("Copying processed data from GPU to host memory\n");
+		printf("	Copying processed data from GPU to host memory\n");
 		cudaEventRecord(start, 0);
 		cudaMemcpy(h_H, d_H, mem_size*2, cudaMemcpyDeviceToHost);
 		cudaEventRecord(stop, 0);
 		cudaEventSynchronize(stop);
 		cudaEventElapsedTime(&elapsedTime, start, stop);
-		printf("Memcpy from GPU to host execution time: %f ms\n", elapsedTime);
+		printf("	Memcpy from GPU to host execution time: %f ms\n", elapsedTime);
 		printf("	H =\n");
 		for (int i = 0; i < n; i++) {
 			for (int j = 0; j < 2; j++) {
@@ -656,7 +723,8 @@ void cudaGeolocation() {
 	// since I have to build R to begin with, I could just invert each value while I build the matrix
 	// INPUT	R is NxN
 	// OUTPUT	inv(R) is NxN
-	printf("\nLaunching matrix inversion using cuBLAS: inv(%ix%i) \n", n, n);
+	if (verbose) { 	printf("\nLaunching matrix inversion using cuBLAS: inv(%ix%i) \n", n, n);
+					fprintf(fpreport,"\nLaunching matrix inversion using cuBLAS: inv(%ix%i) \n", n, n); }
 	struct timeval tv3, tv4;
 	gettimeofday(&tv3,NULL);
 
@@ -679,8 +747,9 @@ void cudaGeolocation() {
 	cudaEventRecord(stop, 0);
 	cudaEventSynchronize(stop);
 	cudaEventElapsedTime(&elapsedTime, start, stop);
-	printf("	cublasSgetrfBatched execution time: %f ms\n", elapsedTime);
-	fprintf(fpreport,"	cublasSgetrfBatched execution time: %f ms\n\n", elapsedTime);
+
+	if (verbose) { 	printf("	cublasSgetrfBatched execution time: %f ms\n", elapsedTime);
+					fprintf(fpreport,"	cublasSgetrfBatched execution time: %f ms\n\n", elapsedTime); }
 
 	int h_INFO = 0;
 	cudaMemcpy(&h_INFO, INFO, sizeof(int), cudaMemcpyDeviceToHost);
@@ -699,8 +768,8 @@ void cudaGeolocation() {
 	cudaEventRecord(stop, 0);
 	cudaEventSynchronize(stop);
 	cudaEventElapsedTime(&elapsedTime, start, stop);
-	printf("	cublasSgetriBatched execution time: %f ms\n", elapsedTime);
-	fprintf(fpreport,"	cublasSgetriBatched execution time: %f ms\n\n", elapsedTime);
+	if (verbose) { 	printf("	cublasSgetriBatched execution time: %f ms\n", elapsedTime);
+					fprintf(fpreport,"	cublasSgetriBatched execution time: %f ms\n\n", elapsedTime); }
 
     cudaMemcpy(&h_INFO, INFO, sizeof(int), cudaMemcpyDeviceToHost);
     if(h_INFO != 0)
@@ -717,10 +786,10 @@ void cudaGeolocation() {
 	cudaFree(d_C);
 
 	gettimeofday(&tv4,NULL);
-	printf("	Total matrix inversion time: %ds %dus\n", (tv4.tv_sec-tv3.tv_sec), (tv4.tv_usec-tv3.tv_usec));
-	fprintf(fpreport,"	Total matrix inversion time: %ds %dus\n", (tv4.tv_sec-tv3.tv_sec), (tv4.tv_usec-tv3.tv_usec));
+	if (verbose) { 	printf("	Total matrix inversion time: %ds %dus\n", (tv4.tv_sec-tv3.tv_sec), (tv4.tv_usec-tv3.tv_usec));
+					fprintf(fpreport,"	Total matrix inversion time: %ds %dus\n", (tv4.tv_sec-tv3.tv_sec), (tv4.tv_usec-tv3.tv_usec)); }
 
-	if (DEBUG || verbose) {	// check CUDA intermediate calculation
+	if (DEBUG || vv) {	// check CUDA intermediate calculation
 		float* h_Rinv = (float *)malloc(Rmem_size);
 		cudaMemcpy(h_Rinv, d_Rinv, Rmem_size, cudaMemcpyDeviceToHost);
 		printf("	inv(R) = \n");
@@ -739,7 +808,8 @@ void cudaGeolocation() {
 	// INPUT	H is Nx2, R is NxN
 	// OUTPUT	H'*inv(R) is 2xN
 	// Note, args for cublasSgemm are nuanced whether they are after the operation or before the operation, LDA is leading dimension of A *before* Op, while M/N/K are *after* Op
-	printf("\nLaunching matrix multiplication using cuBLAS: %ix2 * %ix%i \n", n, n, n);
+	if (verbose) { 	printf("\nLaunching matrix multiplication using cuBLAS: %ix2 * %ix%i \n", n, n, n);
+					fprintf(fpreport,"\nLaunching matrix multiplication using cuBLAS: %ix2 * %ix%i \n", n, n, n); }
 	float *alpha = (float *)malloc(sizeof(float));
 	float *beta = (float *)malloc(sizeof(float));
 	alpha[0] = 1.0;
@@ -749,7 +819,7 @@ void cudaGeolocation() {
 	cublas_status = cublasSgemm(cublas_handle, CUBLAS_OP_T, CUBLAS_OP_N, 2, n, n, alpha, d_H, n, d_Rinv, n, beta, d_tempa, 2);
 	assert(cublas_status == CUBLAS_STATUS_SUCCESS);
 
-	if (DEBUG || verbose) {	// check CUDA intermediate calculation
+	if (DEBUG || vv) {	// check CUDA intermediate calculation
 		float *h_tempa = (float *)malloc(Tempmem_size);
 		cudaMemcpy(h_tempa, d_tempa, Tempmem_size, cudaMemcpyDeviceToHost);
 		printf("	H'*inv(R) = \n");
@@ -766,14 +836,15 @@ void cudaGeolocation() {
 	// H'*inv(R)*H
 	// INPUT	H'*inv(R) is 2xN	H is Nx2
 	// OUTPUT	H'*inv(R)*H is 2x2
-	printf("\nLaunching matrix multiplication using cuBLAS: 2x%i * %ix2 \n", n, n);
+	if (verbose) { 	printf("\nLaunching matrix multiplication using cuBLAS: 2x%i * %ix2 \n", n, n);
+					fprintf(fpreport,"\nLaunching matrix multiplication using cuBLAS: 2x%i * %ix2 \n", n, n); }
 	float *d_tempb;
 	cudaMalloc<float>(&d_tempb, Pmem_size);
 	cublas_status = cublasSgemm(cublas_handle, CUBLAS_OP_N, CUBLAS_OP_N, 2, 2, n, alpha, d_tempa, 2, d_H, n, beta, d_tempb, 2);
 	assert(cublas_status == CUBLAS_STATUS_SUCCESS);
 	cudaFree(d_tempa);	// can be freed after operation they are saved for
 
-	if (DEBUG || verbose) {	// check CUDA intermediate calculation
+	if (DEBUG || vv) {	// check CUDA intermediate calculation
 		float *h_tempb = (float *)malloc(Pmem_size);
 		cudaMemcpy(h_tempb, d_tempb, Pmem_size, cudaMemcpyDeviceToHost);
 		printf("	H'*inv(R)*H = \n");
@@ -786,7 +857,8 @@ void cudaGeolocation() {
 	// P = inv(H'*inv(R)*H)
 	// INPUT	H'*inv(R)*H is 2x2
 	// OUTPUT	P is 2x2
-	printf("\nLaunching matrix inversion using cuBLAS: inv(2x2) \n");
+	if (verbose) { 	printf("\nLaunching matrix inversion using cuBLAS: inv(2x2) \n");
+					fprintf(fpreport,"\nLaunching matrix inversion using cuBLAS: inv(2x2) \n");	}
 	float *d_P;
 	cudaMalloc<float>(&d_P, Pmem_size);
 	float *h_tempc[] = { d_tempb };
@@ -818,22 +890,26 @@ void cudaGeolocation() {
 	cudaFree(d_tempc);
 	cudaFree(d_tempd);
 
-	float *h_P = (float *)malloc(Pmem_size);
-	cudaMemcpy(h_P, d_P, Pmem_size, cudaMemcpyDeviceToHost);
-	printf("	P = \n");
-	printf("	%f	%f\n", h_P[0], h_P[2]);
-	printf("	%f	%f\n", h_P[1], h_P[3]);
+	if (DEBUG || vv) {
+		float *h_P = (float *)malloc(Pmem_size);
+		cudaMemcpy(h_P, d_P, Pmem_size, cudaMemcpyDeviceToHost);
+		printf("	P = \n");
+		printf("	%f	%f\n", h_P[0], h_P[2]);
+		printf("	%f	%f\n", h_P[1], h_P[3]);
+		free(h_P);
+	}
 
 	//#####################################################################
 	// P*H'
 	// INPUT	P is 2x2	H is Nx2
 	// OUTPUT	P*H' is 2xN
-	printf("\nLaunching matrix multiplication using cuBLAS: 2x2 * %ix2 \n", n, n);
+	if (verbose) { 	printf("\nLaunching matrix multiplication using cuBLAS: 2x2 * %ix2 \n", n, n);
+					fprintf(fpreport,"\nLaunching matrix multiplication using cuBLAS: 2x2 * %ix2 \n", n, n); }
 	float *d_tempe;
 	cudaMalloc<float>(&d_tempe, Tempmem_size);
 	cublasSgemm(cublas_handle, CUBLAS_OP_N, CUBLAS_OP_T, 2, n, 2, alpha, d_P, 2, d_H, n, beta, d_tempe, 2);
 	
-	if (DEBUG || verbose) {	// check CUDA intermediate calculation
+	if (DEBUG || vv) {	// check CUDA intermediate calculation
 		float *h_tempe = (float *)malloc(Tempmem_size);
 		cudaMemcpy(h_tempe, d_tempe, Tempmem_size, cudaMemcpyDeviceToHost);
 		printf("	P*H' = \n");
@@ -850,13 +926,14 @@ void cudaGeolocation() {
 	// P*H'*inv(R)
 	// INPUT	P*H' is 2xN		inv(R) is NxN
 	// OUTPUT	P*H'*inv(R) is 2xN
-	printf("\nLaunching matrix multiplication using cuBLAS: 2x%i * %ix%i \n", n, n, n);
+	if (verbose) { 	printf("\nLaunching matrix multiplication using cuBLAS: 2x%i * %ix%i \n", n, n, n);
+					fprintf(fpreport,"\nLaunching matrix multiplication using cuBLAS: 2x%i * %ix%i \n", n, n, n); }
 	float *d_tempf;
 	cudaMalloc<float>(&d_tempf, Tempmem_size);
 	cublasSgemm(cublas_handle, CUBLAS_OP_N, CUBLAS_OP_N, 2, n, n, alpha, d_tempe, 2, d_Rinv, n, beta, d_tempf, 2);
 	cudaFree(d_tempe);
 
-	if (DEBUG || verbose) {	// check CUDA intermediate calculation
+	if (DEBUG || vv) {	// check CUDA intermediate calculation
 		float *h_tempf = (float *)malloc(Tempmem_size);
 		cudaMemcpy(h_tempf, d_tempf, Tempmem_size, cudaMemcpyDeviceToHost);
 		printf("	P*H'*inv(R) = \n");
@@ -873,7 +950,8 @@ void cudaGeolocation() {
 	// z-h
 	// INPUT	z is Nx1	h is Nx1
 	// OUTPUT	z-h is Nx1
-	printf("\nCalculating measurement error: %ix1 - %ix1 \n", n, n);
+	if (verbose) { 	printf("\nCalculating measurement error: %ix1 - %ix1 \n", n, n);
+					fprintf(fpreport,"\nCalculating measurement error: %ix1 - %ix1 \n", n, n); }
 	float *h_z = (float *)malloc(mem_size);
 	for (int i = 0; i < n; i++) {
 		h_z[i] = z[i];
@@ -884,13 +962,24 @@ void cudaGeolocation() {
 	cudaMalloc((void **) &d_z, mem_size);
 	cudaMemcpy(d_z, h_z, mem_size, cudaMemcpyHostToDevice);	
 	cudaEventRecord(start, 0);
-	subtract<<< blocks, threads >>>(d_z, d_h, d_tempg, n);
+	if(smem) {
+		subtract<<< blocks, threads, 2*n*sizeof(float) >>>(d_z, d_h, d_tempg, n);
+	} else {
+		subtract<<< blocks, threads >>>(d_z, d_h, d_tempg, n);
+	}
 	cudaEventRecord(stop, 0);
 	cudaEventSynchronize(stop);
 	cudaEventElapsedTime(&elapsedTime, start, stop);
-	printf("	Thread execution time: %f ms\n", elapsedTime);
+	if (verbose) { 	printf("	Thread execution time: %f ms\n", elapsedTime);
+					fprintf(fpreport,"	Thread execution time: %f ms\n", elapsedTime); }
+	avgsub = avgsub + elapsedTime;
+	if (elapsedTime < fastsub) {
+		fastsub = elapsedTime;
+		fastsubblock = blocks;
+		fastsubthread = threads;
+	}
 
-	if (DEBUG || verbose) {	// check CUDA intermediate calculation
+	if (DEBUG || vv) {	// check CUDA intermediate calculation
 		float *h_tempg = (float *)malloc(mem_size);
 		cudaMemcpy(h_tempg, d_tempg, mem_size, cudaMemcpyDeviceToHost);
 		printf("	z-h =\n");
@@ -904,14 +993,15 @@ void cudaGeolocation() {
 	// P*H'*inv(R)*(z-h)
 	// INPUT	P*H'*inv(R) is 2xN	(z-h) is Nx1
 	// OUTPUT	P*H'*inv(R)*(z-h) is 2x1
-	printf("\nLaunching matrix multiplication using cuBLAS: 2x%i * %ix1 \n", n, n);
+	if (verbose) { 	printf("\nLaunching matrix multiplication using cuBLAS: 2x%i * %ix1 \n", n, n);
+					fprintf(fpreport,"\nLaunching matrix multiplication using cuBLAS: 2x%i * %ix1 \n", n, n); }
 	float *h_temph = (float *)malloc(2*sizeof(float));
 	float *d_temph;
 	cudaMalloc<float>(&d_temph, 2*sizeof(float));
 	cublasSgemm(cublas_handle, CUBLAS_OP_N, CUBLAS_OP_N, 2, 1, n, alpha, d_tempf, 2, d_tempg, n, beta, d_temph, 2);
 	cudaMemcpy(h_temph, d_temph, 2*sizeof(float), cudaMemcpyDeviceToHost);
 
-	if (DEBUG || verbose) {	// check CUDA intermediate calculation
+	if (DEBUG || vv) {	// check CUDA intermediate calculation
 		printf("	P*H'*inv(R)*(z-h) = \n");
 		printf("	%f,  %f\n", h_temph[0], h_temph[1]);
 	}
@@ -921,11 +1011,12 @@ void cudaGeolocation() {
 
 	//#####################################################################
 	// xhat + P*H'*inv(R)*(z-h)
-	printf("\nUpdating estimated target location \n");
+	if (verbose) { 	printf("\nUpdating estimated target location \n");
+					fprintf(fpreport,"\nUpdating estimated target location \n"); }
 	xhatx = xhatx + h_temph[0];
 	xhaty = xhaty + h_temph[1];
-	printf("	xhat = %f, %f\n", xhatx, xhaty);
-
+	if (verbose) { 	printf("	xhat = %f, %f\n", xhatx, xhaty);
+					fprintf(fpreport,"	xhat = %f, %f\n", xhatx, xhaty); }
 	free(h_temph);
 	cudaFree(d_temph);
 
@@ -938,7 +1029,8 @@ void cudaGeolocation() {
 	// TODO d_P is destroyed by this calculation, make sure that's ok for the rest of the code
 	// TODO Eigenvectors aren't quite identical to MATLAB, different signs and order, this might matter...
 	// TODO lwork can probably be hardcoded since P should always be 2x2
-	printf("\nCalculating eigenvalues of covariance matrix P using cuSOLVER: eig(2x2)\n");
+	if (verbose) { 	printf("\nCalculating eigenvalues of covariance matrix P using cuSOLVER: eig(2x2)\n");
+					fprintf(fpreport,"\nCalculating eigenvalues of covariance matrix P using cuSOLVER: eig(2x2)\n"); }
 	float U[4];
 	float VT[4];
 	float h_Eig[2];
@@ -980,7 +1072,7 @@ void cudaGeolocation() {
 		printf("Eigenvalue calculation unsuccessful, gesvd reports: info_gpu = %d\n", info_gpu);
 	}
 
-	if (DEBUG || verbose) {
+	if (DEBUG || vv) {
 		printf("	eig(P) = \n");
 		printf("	%f, %f\n",h_Eig[0],h_Eig[1]);
 	}
@@ -1001,24 +1093,39 @@ void cudaGeolocation() {
 	//#####################################################################
 	// sqrt(k*max(eigenvalues)); sqrt(k*min(eigenvalues));
 	// TODO make this flexible so that we can calculate many versions of this simultaneously - 2xn
-	printf("\nCalculating 95%% semimajor, semiminor ellipse bounds \n");
+	if (verbose) { 	printf("\nCalculating 95%% semimajor, semiminor ellipse bounds \n");
+					fprintf(fpreport,"\nCalculating 95%% semimajor, semiminor ellipse bounds \n");	}
 	int num_ellipses = 1;
 	float Emem_size = sizeof(float)*2*num_ellipses;
 	float k = 5.9915;	// magic constant for 95% confidence ellipse
 	float *d_tempi;
 	cudaMalloc((void **) &d_tempi, Emem_size);
 	cudaEventRecord(start, 0);
-	semiMajMin<<< blocks, threads >>>(d_Eig, k, d_tempi, num_ellipses);
+	if (smem) {
+		semiMajMinSmem<<< blocks, threads, 2*n*sizeof(float) >>>(d_Eig, k, d_tempi, num_ellipses);
+	} else {
+		semiMajMin<<< blocks, threads >>>(d_Eig, k, d_tempi, num_ellipses);
+	}
 	cudaEventRecord(stop, 0);
 	cudaEventSynchronize(stop);
 	cudaEventElapsedTime(&elapsedTime, start, stop);
-	printf("	Thread execution time: %f ms\n", elapsedTime);
+	if (verbose) { 	printf("	Thread execution time: %f ms\n", elapsedTime);
+					fprintf(fpreport,"	Thread execution time: %f ms\n", elapsedTime); }
+	avgsemi = avgsemi + elapsedTime;
+	if (elapsedTime < fastsemi) {
+		fastsemi = elapsedTime;
+		fastsemiblock = blocks;
+		fastsemithread = threads;
+	}
 
 	float *h_semi = (float *)malloc(Emem_size);
 	cudaMemcpy(h_semi, d_tempi, Emem_size, cudaMemcpyDeviceToHost);
-	printf("	semimajor = %f\n",h_semi[0]);
-	printf("	semiminor = %f\n",h_semi[1]);
-	printf("\n");
+	if (verbose) { 	printf("	semimajor = %f\n",h_semi[0]);
+					printf("	semiminor = %f\n",h_semi[1]);
+					printf("\n");
+					fprintf(fpreport,"	semimajor = %f\n",h_semi[0]);
+					fprintf(fpreport,"	semiminor = %f\n",h_semi[1]);
+					fprintf(fpreport,"\n"); }
 
 	if (d_Eig    ) cudaFree(d_Eig);
 	if (d_tempi) cudaFree(d_tempi);
@@ -1143,20 +1250,41 @@ void cudaGeolocation() {
 	cudaFree(d_H);		
 	cudaFree(d_Rinv);	
 	cudaFree(d_P);
-	if (h_P)     free(h_P);
 	if (h_semi)  free(h_semi);
 	if (cublas_handle) cublasDestroy_v2(cublas_handle);
 	if (cusolver_handle) cusolverDnDestroy(cusolver_handle);
 	cudaDeviceReset();
 
-	gettimeofday(&tv2,NULL);
-	printf("Total CUDA Geolocation execution time: %ds %dus\n", (tv2.tv_sec-tv1.tv_sec), (tv2.tv_usec-tv1.tv_usec));
-	fprintf(fpreport,"Total CUDA Geolocation execution time: %ds %dus\n", (tv2.tv_sec-tv1.tv_sec), (tv2.tv_usec-tv1.tv_usec));
+	clock_gettime(CLOCK_REALTIME, &tp2);
+	time_t s;
+	unsigned long us;
+	if (tp2.tv_nsec < tp1.tv_nsec) {
+		s = (tp2.tv_sec-tp1.tv_sec) - 1;
+		us = (tp2.tv_nsec + (1000000000 - tp1.tv_nsec)) / 1000;
+	} else {
+		s = tp2.tv_sec-tp1.tv_sec;
+		us = (tp2.tv_nsec-tp1.tv_nsec) / 1000;
+	}
 
+	avgcuexecs = avgcuexecs + s;
+	avgcuexecus = avgcuexecus + us;
+	if (s < fastcuexecs || (s == fastcuexecs && us < fastcuexecus)) {
+		fastcuexecs = s;
+		fastcuexecus = us;
+		fastcuexecblock = blocks;
+		fastcuexecthread = threads;
+	} else if (s > worstcuexecs || (s == worstcuexecs && us > fastcuexecus)) {
+		worstcuexecs = s;
+		worstcuexecus = us;
+		worstcuexecblock = blocks;
+		worstcuexecthread = threads;
+	}
 
-	printf("\n");
-	fprintf(fpreport,"\n");
-	fflush(fpreport);
+	if (verbose) { 	printf("Total CUDA Geolocation execution time: %i s  %lu us\n", (int)s, us);
+					fprintf(fpreport,"Total CUDA Geolocation execution time: %i s  %lu us\n", (int)s, us);
+					printf("\n");
+					fprintf(fpreport,"\n");
+					fflush(fpreport); }
 }
 
 
@@ -1208,30 +1336,75 @@ int main(int argc, char **argv) {
 			minblocks = chunk / maxThreadsPerBlock + 1;
 		}
 
-		blocks=1;
-		threads=1024;
+
 		// TODO for now we'll reduce thread count per block by factor of 2 each iteration (or increase block count by factor of 2)
-		/*for (blocks = minblocks; blocks < maxblocks; blocks = blocks*2) {
-			threads = chunk / blocks;
+		//for (blocks = minblocks; blocks < maxblocks; blocks = blocks*2) {
+
+			/*threads = chunk / blocks;
 			if (chunk%blocks != 0) {
 				printf("Something went wrong, data chunk is not evenly divisible by # of blocks...\n");
 				fprintf(fpreport,"Something went wrong, data chunk is not evenly divisible by # of blocks...\n");
 			}*/
+		for (int i = 0; i < iterations; i++) {
 
-			printf("## Testing %d blocks of %d threads ##\n", blocks, threads);
-			fprintf(fpreport,"## Testing %d blocks of %d threads ##\n", blocks, threads);
-			fflush(fpreport);
+			if (verbose) { 	printf("## Testing %d blocks of %d threads ##\n", blocks, threads);
+							fprintf(fpreport,"## Testing %d blocks of %d threads ##\n", blocks, threads);
+							fflush(fpreport); }
 			cudaGeolocation();
-		//}
+		}
+
+		// compute averages
+		avgparam = avgparam / iterations;
+		avgcov = avgcov / iterations;
+		avgsub = avgsub / iterations;
+		avgsemi = avgsemi / iterations;
+		avgcuexecs = avgcuexecs / iterations;
 
 		printf("\n##### Completed Geo Block/Thread Benchmarking Routine #####\n");
 		fprintf(fpreport,"\n##### Completed Geo Block/Thread Benchmarking Routine #####\n");
 
-		// print fastest layout
-		printf("Fastest parameterPrediction: %f ms using %i blocks and %i threads\n", fastparam, fastparamblock, fastparamthread);
-		fprintf(fpreport,"Fastest parameterPrediction: %f ms using %i blocks and %i threads\n", fastparam, fastparamblock, fastparamthread);
-		printf("Fastest covariancePrediction: %f ms using %i blocks and %i threads\n", fastcov, fastcovblock, fastcovthread);
-		fprintf(fpreport,"Fastest covariancePrediction: %f ms using %i blocks and %i threads\n", fastcov, fastcovblock, fastcovthread);
+		// print fastest and average execution times based on layout
+		printf("Fastest execution time for entire C/C++ Geo-location algorithm: %i s, %lu us\n", fastcexecs, fastcexecus);
+		printf("Slowest execution time for entire C/C++ Geo-location algorithm: %i s, %lu us\n", worstcexecs, worstcexecus);
+		printf("Average execution time for entire C/C++ Geo-location algorithm: %i s, %lu us\n", avgcexecs, avgcexecus);
+		printf("\n");
+		fprintf(fpreport,"Fastest execution time for entire C/C++ Geo-location algorithm: %i s, %lu us\n", fastcexecs, fastcexecus);
+		fprintf(fpreport,"Slowest execution time for entire C/C++ Geo-location algorithm: %i s, %lu us\n", worstcexecs, worstcexecus);
+		fprintf(fpreport,"Average execution time for entire C/C++ Geo-location algorithm: %i s, %lu us\n", avgcexecs, avgcexecus);
+		fprintf(fpreport,"\n");
+		fprintf(fpreport,"\n");
+		printf("Fastest execution time for entire CUDA Geo-location algorithm: %i s, %lu us using %i blocks and %i threads\n", fastcuexecs, fastcuexecus, fastcuexecblock, fastcuexecthread);
+		printf("Slowest execution time for entire CUDA Geo-location algorithm: %i s, %lu us using %i blocks and %i threads\n", worstcuexecs, worstcuexecus, worstcuexecblock, worstcuexecthread);
+		printf("Average execution time for entire CUDA Geo-location algorithm: %i s, %lu us\n", avgcuexecs, avgcuexecus);
+		printf("\n");
+		fprintf(fpreport,"Fastest execution time for entire CUDA Geo-location algorithm: %i s, %lu us using %i blocks and %i threads\n", fastcuexecs, fastcuexecus, fastcuexecblock, fastcuexecthread);
+		fprintf(fpreport,"Slowest execution time for entire CUDA Geo-location algorithm: %i s, %lu us using %i blocks and %i threads\n", worstcuexecs, worstcuexecus, worstcuexecblock, worstcuexecthread);
+		fprintf(fpreport,"Average execution time for entire CUDA Geo-location algorithm: %i s, %lu us\n", avgcuexecs, avgcuexecus);
+		fprintf(fpreport,"\n");
+		printf("Fastest parameterPrediction kernel execution: %f ms using %i blocks and %i threads\n", fastparam, fastparamblock, fastparamthread);
+		printf("Average parameterPrediction kernel execution: %f ms\n", avgparam);
+		printf("\n");
+		fprintf(fpreport,"Fastest parameterPrediction kernel execution: %f ms using %i blocks and %i threads\n", fastparam, fastparamblock, fastparamthread);
+		fprintf(fpreport,"Average parameterPrediction kernel execution: %f ms\n", avgparam);
+		fprintf(fpreport,"\n");
+		printf("Fastest covariancePrediction kernel execution: %f ms using %i blocks and %i threads\n", fastcov, fastcovblock, fastcovthread);
+		printf("Average covariancePrediction kernel execution: %f ms\n", avgcov);
+		printf("\n");
+		fprintf(fpreport,"Fastest covariancePrediction kernel execution: %f ms using %i blocks and %i threads\n", fastcov, fastcovblock, fastcovthread);
+		fprintf(fpreport,"Average covariancePrediction kernel execution: %f ms\n", avgcov);
+		fprintf(fpreport,"\n");
+		printf("Fastest subtract kernel execution: %f ms using %i blocks and %i threads\n", fastsub, fastsubblock, fastsubthread);
+		printf("Average subtract kernel execution: %f ms\n", avgsub);
+		printf("\n");
+		fprintf(fpreport,"Fastest subtract kernel execution: %f ms using %i blocks and %i threads\n", fastsub, fastsubblock, fastsubthread);
+		fprintf(fpreport,"Average subtract kernel execution: %f ms\n", avgsub);
+		fprintf(fpreport,"\n");
+		printf("Fastest semiMajMin kernel execution: %f ms using %i blocks and %i threads\n", fastsemi, fastsemiblock, fastsemithread);
+		printf("Average semiMajMin kernel execution: %f ms\n", avgsemi);
+		printf("\n");
+		fprintf(fpreport,"Fastest semiMajMin kernel execution: %f ms using %i blocks and %i threads\n", fastsemi, fastsemiblock, fastsemithread);
+		fprintf(fpreport,"Average semiMajMin kernel execution: %f ms\n", avgsemi);
+		fprintf(fpreport,"\n");
 	}
 
 	cudaDeviceReset();
