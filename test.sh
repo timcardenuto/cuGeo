@@ -46,7 +46,7 @@ if [ "$line" = "Done" ]
 then
   returncode=0
 fi
-done < <(./cuGEO --iterations 1000 --measurements 1024 --blocks 32 --threads 1024)
+done < <(./cuGEO --iterations 10 --measurements 1024 --blocks 32 --threads 1024)
 
 if [ "$returncode" = "0" ]
 then

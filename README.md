@@ -130,9 +130,9 @@ Adds utilization of GPU cache based on certain parameters. The CUDA libraries cu
 
 Additional command line flags were added to run iterations and prevent printed output from overwhelming the user that can be used like this:
 
-	./cuGEO --iterations 1000 --threads 1024 --blocks 32 --measurements 1024
+	./cuGEO --iterations 100 --threads 1024 --blocks 32 --measurements 1024
 
-The above command will launch the geo-location algorithm with 1024 measurements, using 1024 threads and 32 blocks where possible (CUDA libraries generally optimize their own), and will iterate the entire algorithm from scratch 1000 times, collecting best, worst, and average execution times. The above command will appear to pause while it runs all iterations and at the end will print out a summary report. To see all prints use the "--verbose" flag, but be aware this will print during EVERY iteration. You can see additional details with the "--vv" flag which will perform memcpy's to print out intermediate values during the algorithm calculations - this is useful for debug when you're only passing a few measurements (< 10) and want to check calculations against MATLAB models.
+The above command will launch the geo-location algorithm with 1024 measurements, using 1024 threads and 32 blocks where possible (CUDA libraries generally optimize their own), and will iterate the entire algorithm from scratch 100 times, collecting best, worst, and average execution times. The above command will appear to pause while it runs all iterations and at the end will print out a summary report. To see all prints use the "--verbose" flag, but be aware this will print during EVERY iteration. You can see additional details with the "--vv" flag which will perform memcpy's to print out intermediate values during the algorithm calculations - this is useful for debug when you're only passing a few measurements (< 10) and want to check calculations against MATLAB models.
 
 
 #### Module 7 ####
