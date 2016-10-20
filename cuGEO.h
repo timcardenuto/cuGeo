@@ -14,7 +14,6 @@
 
 #include <cuda_runtime.h>
 #include "cublas_v2.h"
-
 #include <cusolverDn.h>
 
 
@@ -25,6 +24,10 @@
 __global__ void parameterPrediction(float *d_locx, float *d_locy, float *d_param, float xhatx, float xhaty, int num_elements);
 
 __global__ void parameterPredictionSmem(float *d_locx, float *d_locy, float *d_param, float xhatx, float xhaty, int num_elements);
+
+//__constant__ float cmem[6];
+
+__global__ void parameterPredictionCmem(float *d_param, float xhatx, float xhaty, int num_elements);
 
 __global__ void covariancePrediction(float *d_locx, float *d_locy, float *d_param, float *d_cov, float xhatx, float xhaty, int num_elements);
 

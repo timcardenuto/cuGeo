@@ -8,6 +8,7 @@
 #include "cuGEO.h"
 
 #define DEBUG 0
+#define CMEMSIZE 1024	// has to be predetermined, realistically is only good for a small number of constants (duh), not regular data - this is just here for "test"
 
 // command line args
 static long int device = 0;
@@ -21,7 +22,8 @@ static long int iterations = 1;
 static long int measurements = 3;
 static int verbose = 0;
 static int vv = 0;
-static int smem = 0;
+static int usesmem = 0;
+static int usecmem = 0;
 
 // cuda device properties
 static int maxThreadsPerBlock = 0;
@@ -95,7 +97,8 @@ void checkCmdArgs(int argc, char **argv) {
 			{"configure",	required_argument, 	0, 'x'},
 			{"vv",	no_argument, 	&vv, 1},
 			{"verbose",	no_argument, 	&verbose, 1},
-			{"smem",	no_argument, 	&smem, 1},
+			{"smem",	no_argument, 	&usesmem, 1},
+			{"cmem",	no_argument, 	&usecmem, 1},
 			{"help",	no_argument, 		0, 'h'},
 			{0,			0, 					0, 0},
 		};
@@ -170,7 +173,7 @@ void checkCmdArgs(int argc, char **argv) {
 				verbose = 1;
 		        break;
        		case 's':
-				smem = 1;
+				usesmem = 1;
 				break;
 			default:
 				displayCmdUsage();
@@ -247,10 +250,10 @@ void parseConfig() {
 				verbose = strtoul(pch, &str, 10);
 				printf("	Verbose option set to %i\n", verbose);
 
-			} else if (strcmp(pch,"smem") == 0) {
+			} else if (strcmp(pch,"usesmem") == 0) {
 				pch = strtok (NULL, "=");
-				smem = strtoul(pch, &str, 10);
-				printf("	Shared Memory option set to %i\n", smem);
+				usesmem = strtoul(pch, &str, 10);
+				printf("	Shared Memory option set to %i\n", usesmem);
 
 			} else {
 				printf("Error, unknown option %s \n",pch);
@@ -570,6 +573,22 @@ void cpuGeolocation() {
 
 
 /*
+ * Version of the parameterPrediction kernel that uses constant memory - it won't work unless in the same file as the CPU call...
+ * Puts input data into constant memory (cmem) instead of global memory - probably will not be more efficient since constant memory is
+ * intended for a small amount of data needed by *every* thread
+ * It *does* make sense to use constant memory for the xhatx, xhaty, and num_elements values because they are accessed by every thread
+ */
+__constant__ float cmem[CMEMSIZE];
+__global__ void parameterPredictionCmem(float *d_param, float xhatx, float xhaty, int num_elements) {
+	const unsigned int tid = blockDim.x * blockIdx.x + threadIdx.x;
+	if (tid < num_elements) {
+		d_param[tid] = atan2f((xhaty-cmem[tid+num_elements]),(xhatx-cmem[tid]));
+	}
+}
+
+
+
+/*
  * CUDA version of DOA Geolocation algorithm using cuBLAS, cuSPARSE
  */
 void cudaGeolocation() {
@@ -604,6 +623,16 @@ void cudaGeolocation() {
 	for (int i = 0; i < n; i++) {
 		h_locx[i] =  ax[i];
 		h_locy[i] =  ay[i];
+	}
+
+	if(usecmem) {
+		float *h_loc = (float *)malloc(2*n*sizeof(float));
+		for (int i = 0; i < n; i++) {
+			h_loc[i] = h_locx[i];
+			h_loc[i+n] = h_locy[i];
+		}
+		cudaMemcpyToSymbol(cmem, h_loc, 2*n*sizeof(float));
+		free(h_loc);
 	}
 
 	// allocate target GPU device memory
@@ -641,8 +670,11 @@ void cudaGeolocation() {
 	if (verbose) { 	printf("\nLaunching parameterPrediction CUDA kernel\n");
 					fprintf(fpreport,"\nLaunching parameterPrediction CUDA kernel\n"); }
 	cudaEventRecord(start, 0);
-	if (smem) {
+	if (usesmem) {
 		parameterPredictionSmem<<< blocks, threads, 2*n*sizeof(float) >>>(d_locx, d_locy, d_h, xhatx, xhaty, n);
+	} else if (usecmem) {
+		parameterPredictionCmem<<< blocks, threads >>>(d_h, xhatx, xhaty, n);
+		usecmem=0; // TODO last use, set to zero so we can re-run and catch the last else kernel types
 	} else {
 		parameterPrediction<<< blocks, threads >>>(d_locx, d_locy, d_h, xhatx, xhaty, n);
 	}
@@ -681,7 +713,7 @@ void cudaGeolocation() {
 	if (verbose) { 	printf("\nLaunching covariancePrediction CUDA kernel\n");
 					fprintf(fpreport,"Launching covariancePrediction CUDA kernel\n"); }
 	cudaEventRecord(start, 0);
-	if(smem) {
+	if(usesmem) {
 		covariancePredictionSmem<<< blocks, threads, 3*n*sizeof(float) >>>(d_locx, d_locy, d_h, d_H, xhatx, xhaty, n);
 	} else {
 		covariancePrediction<<< blocks, threads >>>(d_locx, d_locy, d_h, d_H, xhatx, xhaty, n);
@@ -962,7 +994,7 @@ void cudaGeolocation() {
 	cudaMalloc((void **) &d_z, mem_size);
 	cudaMemcpy(d_z, h_z, mem_size, cudaMemcpyHostToDevice);	
 	cudaEventRecord(start, 0);
-	if(smem) {
+	if(usesmem) {
 		subtract<<< blocks, threads, 2*n*sizeof(float) >>>(d_z, d_h, d_tempg, n);
 	} else {
 		subtract<<< blocks, threads >>>(d_z, d_h, d_tempg, n);
@@ -1101,8 +1133,9 @@ void cudaGeolocation() {
 	float *d_tempi;
 	cudaMalloc((void **) &d_tempi, Emem_size);
 	cudaEventRecord(start, 0);
-	if (smem) {
+	if (usesmem) {
 		semiMajMinSmem<<< blocks, threads, 2*n*sizeof(float) >>>(d_Eig, k, d_tempi, num_ellipses);
+		usesmem=0;	// TODO last use, set to zero so we can re-run and catch cmem or other kernel types on next run
 	} else {
 		semiMajMin<<< blocks, threads >>>(d_Eig, k, d_tempi, num_ellipses);
 	}
@@ -1322,8 +1355,8 @@ int main(int argc, char **argv) {
 
 	// setup kernel for single "chunk" execution
 	if (optimal) {	// run block/thread benchmarking routine
-		printf("\n##### Executing Geo Block/Thread Benchmarking Routine #####\n");
-		fprintf(fpreport,"\n##### Executing Geo Block/Thread Benchmarking Routine #####\n");
+		printf("\n##### Executing CUDA Geo Benchmarking Routine #####\n");
+		fprintf(fpreport,"\n##### Executing CUDA Geo Benchmarking Routine #####\n");
 		int minblocks = 1;
 		int maxblocks = chunk; // there is effectively no max (my GPU is 2147483647 in dim[0]) so max is 1 thread per block
 
@@ -1345,66 +1378,89 @@ int main(int argc, char **argv) {
 				printf("Something went wrong, data chunk is not evenly divisible by # of blocks...\n");
 				fprintf(fpreport,"Something went wrong, data chunk is not evenly divisible by # of blocks...\n");
 			}*/
-		for (int i = 0; i < iterations; i++) {
 
-			if (verbose) { 	printf("## Testing %d blocks of %d threads ##\n", blocks, threads);
-							fprintf(fpreport,"## Testing %d blocks of %d threads ##\n", blocks, threads);
-							fflush(fpreport); }
-			cudaGeolocation();
+		for (int j = 0; j < (usesmem+usecmem+1); j++) {		// ex. you want to check smem and cmem types so 2 + default = 3 runs
+
+			// tests should execute this memory type order regardless of which chosen by user
+			char *typestring;
+			if (usesmem) { typestring = "shared memory"; } else if (usecmem) {typestring = "constant memory"; } else { typestring = "mixed memory"; }
+
+			//
+
+			for (int i = 0; i < iterations; i++) {
+				if (verbose) { 	printf("## Testing %d blocks of %d threads ##\n", blocks, threads);
+								fprintf(fpreport,"## Testing %d blocks of %d threads ##\n", blocks, threads);
+								fflush(fpreport); }
+				cudaGeolocation();
+			}
+
+
+			// compute averages
+			// TODO remember to check how the average is done when multiple iterations of the same block/thread are run vice multiple iterations with different thread/blocks
+			avgparam = avgparam / iterations;
+			avgcov = avgcov / iterations;
+			avgsub = avgsub / iterations;
+			avgsemi = avgsemi / iterations;
+			avgcuexecs = avgcuexecs / iterations;
+
+			printf("\n##### Completed CUDA Geo Benchmarking Routine #####\n");
+			fprintf(fpreport,"\n##### Completed CUDA Geo Benchmarking Routine #####\n");
+
+			printf("Memory used:		%s\n", typestring);
+			printf("Num blocks:		%i\n", blocks);
+			printf("Num threads:		%i\n", threads);
+			printf("Iterations:		%i\n", iterations);
+			printf("Num measurements:	%i\n", measurements);
+			printf("\n");
+			fprintf(fpreport,"Memory used:		%s\n", typestring);
+			fprintf(fpreport,"Blocks used:		%i\n", blocks);
+			fprintf(fpreport,"Threads used:		%i\n", threads);
+			fprintf(fpreport,"Iterations:		%i\n", iterations);
+			fprintf(fpreport,"Num measurements:	%i\n", measurements);
+			fprintf(fpreport,"\n");
+
+			// print fastest and average execution times based on layout
+			printf("Fastest execution time for entire C/C++ Geo-location algorithm: %i s, %lu us\n", fastcexecs, fastcexecus);
+			printf("Slowest execution time for entire C/C++ Geo-location algorithm: %i s, %lu us\n", worstcexecs, worstcexecus);
+			printf("Average execution time for entire C/C++ Geo-location algorithm: %i s, %lu us\n", avgcexecs, avgcexecus);
+			printf("\n");
+			fprintf(fpreport,"Fastest execution time for entire C/C++ Geo-location algorithm: %i s, %lu us\n", fastcexecs, fastcexecus);
+			fprintf(fpreport,"Slowest execution time for entire C/C++ Geo-location algorithm: %i s, %lu us\n", worstcexecs, worstcexecus);
+			fprintf(fpreport,"Average execution time for entire C/C++ Geo-location algorithm: %i s, %lu us\n", avgcexecs, avgcexecus);
+			fprintf(fpreport,"\n");
+			printf("Fastest execution time for entire CUDA Geo-location algorithm: %i s, %lu us using %i blocks and %i threads\n", fastcuexecs, fastcuexecus, fastcuexecblock, fastcuexecthread);
+			printf("Slowest execution time for entire CUDA Geo-location algorithm: %i s, %lu us using %i blocks and %i threads\n", worstcuexecs, worstcuexecus, worstcuexecblock, worstcuexecthread);
+			printf("Average execution time for entire CUDA Geo-location algorithm: %i s, %lu us\n", avgcuexecs, avgcuexecus);
+			printf("\n");
+			fprintf(fpreport,"Fastest execution time for entire CUDA Geo-location algorithm: %i s, %lu us using %i blocks and %i threads\n", fastcuexecs, fastcuexecus, fastcuexecblock, fastcuexecthread);
+			fprintf(fpreport,"Slowest execution time for entire CUDA Geo-location algorithm: %i s, %lu us using %i blocks and %i threads\n", worstcuexecs, worstcuexecus, worstcuexecblock, worstcuexecthread);
+			fprintf(fpreport,"Average execution time for entire CUDA Geo-location algorithm: %i s, %lu us\n", avgcuexecs, avgcuexecus);
+			fprintf(fpreport,"\n");
+			printf("Fastest parameterPrediction kernel execution: %f ms using %i blocks and %i threads\n", fastparam, fastparamblock, fastparamthread);
+			printf("Average parameterPrediction kernel execution: %f ms\n", avgparam);
+			printf("\n");
+			fprintf(fpreport,"Fastest parameterPrediction kernel execution: %f ms using %i blocks and %i threads\n", fastparam, fastparamblock, fastparamthread);
+			fprintf(fpreport,"Average parameterPrediction kernel execution: %f ms\n", avgparam);
+			fprintf(fpreport,"\n");
+			printf("Fastest covariancePrediction kernel execution: %f ms using %i blocks and %i threads\n", fastcov, fastcovblock, fastcovthread);
+			printf("Average covariancePrediction kernel execution: %f ms\n", avgcov);
+			printf("\n");
+			fprintf(fpreport,"Fastest covariancePrediction kernel execution: %f ms using %i blocks and %i threads\n", fastcov, fastcovblock, fastcovthread);
+			fprintf(fpreport,"Average covariancePrediction kernel execution: %f ms\n", avgcov);
+			fprintf(fpreport,"\n");
+			printf("Fastest subtract kernel execution: %f ms using %i blocks and %i threads\n", fastsub, fastsubblock, fastsubthread);
+			printf("Average subtract kernel execution: %f ms\n", avgsub);
+			printf("\n");
+			fprintf(fpreport,"Fastest subtract kernel execution: %f ms using %i blocks and %i threads\n", fastsub, fastsubblock, fastsubthread);
+			fprintf(fpreport,"Average subtract kernel execution: %f ms\n", avgsub);
+			fprintf(fpreport,"\n");
+			printf("Fastest semiMajMin kernel execution: %f ms using %i blocks and %i threads\n", fastsemi, fastsemiblock, fastsemithread);
+			printf("Average semiMajMin kernel execution: %f ms\n", avgsemi);
+			printf("\n");
+			fprintf(fpreport,"Fastest semiMajMin kernel execution: %f ms using %i blocks and %i threads\n", fastsemi, fastsemiblock, fastsemithread);
+			fprintf(fpreport,"Average semiMajMin kernel execution: %f ms\n", avgsemi);
+			fprintf(fpreport,"\n");
 		}
-
-		// compute averages
-		avgparam = avgparam / iterations;
-		avgcov = avgcov / iterations;
-		avgsub = avgsub / iterations;
-		avgsemi = avgsemi / iterations;
-		avgcuexecs = avgcuexecs / iterations;
-
-		printf("\n##### Completed Geo Block/Thread Benchmarking Routine #####\n");
-		fprintf(fpreport,"\n##### Completed Geo Block/Thread Benchmarking Routine #####\n");
-
-		// print fastest and average execution times based on layout
-		printf("Fastest execution time for entire C/C++ Geo-location algorithm: %i s, %lu us\n", fastcexecs, fastcexecus);
-		printf("Slowest execution time for entire C/C++ Geo-location algorithm: %i s, %lu us\n", worstcexecs, worstcexecus);
-		printf("Average execution time for entire C/C++ Geo-location algorithm: %i s, %lu us\n", avgcexecs, avgcexecus);
-		printf("\n");
-		fprintf(fpreport,"Fastest execution time for entire C/C++ Geo-location algorithm: %i s, %lu us\n", fastcexecs, fastcexecus);
-		fprintf(fpreport,"Slowest execution time for entire C/C++ Geo-location algorithm: %i s, %lu us\n", worstcexecs, worstcexecus);
-		fprintf(fpreport,"Average execution time for entire C/C++ Geo-location algorithm: %i s, %lu us\n", avgcexecs, avgcexecus);
-		fprintf(fpreport,"\n");
-		fprintf(fpreport,"\n");
-		printf("Fastest execution time for entire CUDA Geo-location algorithm: %i s, %lu us using %i blocks and %i threads\n", fastcuexecs, fastcuexecus, fastcuexecblock, fastcuexecthread);
-		printf("Slowest execution time for entire CUDA Geo-location algorithm: %i s, %lu us using %i blocks and %i threads\n", worstcuexecs, worstcuexecus, worstcuexecblock, worstcuexecthread);
-		printf("Average execution time for entire CUDA Geo-location algorithm: %i s, %lu us\n", avgcuexecs, avgcuexecus);
-		printf("\n");
-		fprintf(fpreport,"Fastest execution time for entire CUDA Geo-location algorithm: %i s, %lu us using %i blocks and %i threads\n", fastcuexecs, fastcuexecus, fastcuexecblock, fastcuexecthread);
-		fprintf(fpreport,"Slowest execution time for entire CUDA Geo-location algorithm: %i s, %lu us using %i blocks and %i threads\n", worstcuexecs, worstcuexecus, worstcuexecblock, worstcuexecthread);
-		fprintf(fpreport,"Average execution time for entire CUDA Geo-location algorithm: %i s, %lu us\n", avgcuexecs, avgcuexecus);
-		fprintf(fpreport,"\n");
-		printf("Fastest parameterPrediction kernel execution: %f ms using %i blocks and %i threads\n", fastparam, fastparamblock, fastparamthread);
-		printf("Average parameterPrediction kernel execution: %f ms\n", avgparam);
-		printf("\n");
-		fprintf(fpreport,"Fastest parameterPrediction kernel execution: %f ms using %i blocks and %i threads\n", fastparam, fastparamblock, fastparamthread);
-		fprintf(fpreport,"Average parameterPrediction kernel execution: %f ms\n", avgparam);
-		fprintf(fpreport,"\n");
-		printf("Fastest covariancePrediction kernel execution: %f ms using %i blocks and %i threads\n", fastcov, fastcovblock, fastcovthread);
-		printf("Average covariancePrediction kernel execution: %f ms\n", avgcov);
-		printf("\n");
-		fprintf(fpreport,"Fastest covariancePrediction kernel execution: %f ms using %i blocks and %i threads\n", fastcov, fastcovblock, fastcovthread);
-		fprintf(fpreport,"Average covariancePrediction kernel execution: %f ms\n", avgcov);
-		fprintf(fpreport,"\n");
-		printf("Fastest subtract kernel execution: %f ms using %i blocks and %i threads\n", fastsub, fastsubblock, fastsubthread);
-		printf("Average subtract kernel execution: %f ms\n", avgsub);
-		printf("\n");
-		fprintf(fpreport,"Fastest subtract kernel execution: %f ms using %i blocks and %i threads\n", fastsub, fastsubblock, fastsubthread);
-		fprintf(fpreport,"Average subtract kernel execution: %f ms\n", avgsub);
-		fprintf(fpreport,"\n");
-		printf("Fastest semiMajMin kernel execution: %f ms using %i blocks and %i threads\n", fastsemi, fastsemiblock, fastsemithread);
-		printf("Average semiMajMin kernel execution: %f ms\n", avgsemi);
-		printf("\n");
-		fprintf(fpreport,"Fastest semiMajMin kernel execution: %f ms using %i blocks and %i threads\n", fastsemi, fastsemiblock, fastsemithread);
-		fprintf(fpreport,"Average semiMajMin kernel execution: %f ms\n", avgsemi);
-		fprintf(fpreport,"\n");
 	}
 
 	cudaDeviceReset();

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-./cuGEO --smem --verbose
+./cuGEO --cmem
 
 echo -n "Test 1... "
 returncode=1
@@ -64,7 +64,7 @@ if [ "$line" = "Done" ]
 then
   returncode=0
 fi
-done < <(./cuGEO --measurements 1024 --smem --verbose)
+done < <(./cuGEO --cmem --smem)
 
 if [ "$returncode" = "0" ]
 then
