@@ -136,7 +136,11 @@ The above command will launch the geo-location algorithm with 1024 measurements,
 
 
 #### Module 7 ####
-Adds utilization of GPU constant memory.
+Adds a version of the parameterPrediction kernel that primarily uses constant memory to test performance comparisons with other versions of the kernels. The test harness was modified so that multiple versions of kernels can be run by using flags like this:
+
+	./cuGEO --smem --cmem
+
+which will run the entire CUDA Geo program using shared memory kernels, and then a second iteration with constant memory kernels, and always a final iteration of the default mixed memory kernels. Each of these will output their own statistics report on execution times. You can also include previous arguments, like "iterations" which will run the number of iterations for each memory type which helps produce an average execution time for different kernels.
 
 
 #### Module 8 ####

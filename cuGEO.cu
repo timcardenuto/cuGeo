@@ -57,7 +57,7 @@ unsigned long  fastcexecus = 1000000000, worstcexecus = 0, avgcexecus = 0;
 
 /* help message block */
 void displayCmdUsage() {
-	puts("Usage: ./cuAMC [OPTION] \n \
+	puts("Usage: ./cuGEO [OPTION] \n \
 	-d	--device	Specify which GPU to use, defaults to 0. \n \
 	-b	--blocks	Number of blocks to use, defaults to 1. \n \
 	-t	--threads	Number of threads to assign per block, defaults to the number of elements in your data set. \n \
@@ -73,8 +73,9 @@ void displayCmdUsage() {
 	-m	--measurements	Number of measurements to include in the geolocation calculation \n \
 	-x	--configure		Path to configuration file. Any parameters specified on the command line will override the equivalent ones in this file \n \
 	-v	--verbose		Prints output of each kernel \n \
-	-s	--smem		Uses shared memory with kernels where possible \n \
-	--help			Display this message \n");
+	-s	--smem		Uses shared memory kernels for comparison \n \
+	    --cmem		Uses constant memory kernels for comparison\n \
+	    --help		Display this message \n");
 	exit(1);
 }
 
@@ -249,11 +250,6 @@ void parseConfig() {
 				pch = strtok (NULL, "=");
 				verbose = strtoul(pch, &str, 10);
 				printf("	Verbose option set to %i\n", verbose);
-
-			} else if (strcmp(pch,"usesmem") == 0) {
-				pch = strtok (NULL, "=");
-				usesmem = strtoul(pch, &str, 10);
-				printf("	Shared Memory option set to %i\n", usesmem);
 
 			} else {
 				printf("Error, unknown option %s \n",pch);
