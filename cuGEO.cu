@@ -61,8 +61,9 @@ void displayCmdUsage() {
 	-d	--device	Specify which GPU to use, defaults to 0. \n \
 	-b	--blocks	Number of blocks to use, defaults to 1. \n \
 	-t	--threads	Number of threads to assign per block, defaults to the number of elements in your data set. \n \
-	-f	--file		Path to data file that will be processed, default is auto-generated random data. NOTE: the \n \
-				only currently support file types are *binary float* in an iterive complex form (IQIQIQ), no csv, no integers, etc. \n \
+	-f	--file		Path to data file that will be processed, default is auto-generated random data. NOTE: the only currently supported file\n \
+				 types are CSV containing DOA measurements in the first column, the 'x' parameter of the measurement location in the second column\n \
+				 and the 'y' parameter of the measurement location in the third column. The last row contains sigma values (assumes single sensor) \n \
 	--find-optimal		Flag used with --chunk, loops kernel execution over a range of block/thread sizes based on the data chunk size \n \
 				Does not work when specifying block/thread numbers manually \n \
 	-c	--chunk		Number of elements from data set to process per pass on this device, aka chunk size. Can be thought of as a packet \n \
@@ -359,7 +360,7 @@ void generateScenario() {
 	ay.clear();
 	z.clear();
 
-	n = measurements;	// this will allow the rest of the code to actually try with the user argument
+	n = measurements;	// this will allow the rest of the code to actually try with the user argument. If using a file, only use "measurement" number of rows
 
 	// builds R sensor variance identity matrix based on number of measurements
 	// TODO is this correct? either it's a scalar b/c all measurements have same variance, or it's an identity of size NxN b/c otherwise the math wouldn't work out right
@@ -379,19 +380,72 @@ void generateScenario() {
 		//printf("\n");
 	}
 
-	ax.push_back((sin(60.0/180.0*M_PI)*15.0*1852.0));	// measurement location 1
-	ay.push_back((cos(60.0/180.0*M_PI)*15.0*1852.0));
-	z.push_back(-(90.0+60.0)/180.0*M_PI);				// measurement DOA 1
+	//TODO pull R from file
+	if (file) {	// if we're using a data file with DOA measurements
+		FILE *fp;
+		fp = fopen(file, "r");
+		if (fp==NULL) {
+			fprintf(stderr,"Failed to open file %s with error %d \n", file, errno);
+			fprintf(fpreport,"Failed to open file %s with error %d \n", file, errno);
+			fclose(fpreport);
+			cudaDeviceReset();
+			exit(1);
+		}
+		int filesize;
+		fseek(fp, 0L, SEEK_END);
+		filesize = ftell(fp);
+		rewind(fp);
+		printf("File Size:		%i \n", filesize);
+		fprintf(fpreport,"File Size:		%i \n", filesize);
 
-	for (int i = 0; i < n-2; i++) {
-		ax.push_back((sin(-5.0/180.0*M_PI)*10.0*1852.0));	// measurement location 2
-		ay.push_back((cos(5.0/180.0*M_PI)*10.0*1852.0));
-		z.push_back(-(90.0-5.0)/180.0*M_PI);				// measurement DOA 2
+		printf("Loading DOA measurements from file...\n");
+		fprintf(fpreport,"Loading DOA measurements from file...\n");
+
+		char line[1024];
+		while (fgets(line, 1024, fp))
+		{
+			printf("in first loop\n");
+			char* tmp = strdup(line);
+			const char* tok;
+			int num = 1;
+			for (tok = strtok(tmp, ",");
+					tok && *tok;
+					tok = strtok(NULL, ",\n"))
+			{
+				/*
+				if (!--num) {
+					z.push_back(strtof(tok,NULL));
+				} else if (!--num) {
+					ax.push_back(strtof(tok,NULL));
+				} else if (!--num) {
+					ay.push_back(strtof(tok,NULL));
+				}
+				n++;
+				*/
+			}
+			printf("out of inner loop \n");
+			// NOTE strtok clobbers tmp
+			free(tmp);
+		}
+		printf("closing file\n");
+		fclose(fp);
+
+
+	} else {	// generate some random DOA measurements
+		ax.push_back((sin(60.0/180.0*M_PI)*15.0*1852.0));	// measurement location 1
+		ay.push_back((cos(60.0/180.0*M_PI)*15.0*1852.0));
+		z.push_back(-(90.0+60.0)/180.0*M_PI);				// measurement DOA 1
+
+		for (int i = 0; i < n-2; i++) {
+			ax.push_back((sin(-5.0/180.0*M_PI)*10.0*1852.0));	// measurement location 2
+			ay.push_back((cos(5.0/180.0*M_PI)*10.0*1852.0));
+			z.push_back(-(90.0-5.0)/180.0*M_PI);				// measurement DOA 2
+		}
+
+		ax.push_back((sin(10.0/180.0*M_PI)*5.0*1852.0));	// measurement location 3
+		ay.push_back((cos(10.0/180.0*M_PI)*5.0*1852.0));
+		z.push_back(-(90.0+10.0)/180.0*M_PI);				// measurement DOA 3
 	}
-
-	ax.push_back((sin(10.0/180.0*M_PI)*5.0*1852.0));	// measurement location 3
-	ay.push_back((cos(10.0/180.0*M_PI)*5.0*1852.0));
-	z.push_back(-(90.0+10.0)/180.0*M_PI);				// measurement DOA 3
 
 	// target location guess
 	xhatx = 2.0*1852.0;
