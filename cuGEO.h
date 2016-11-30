@@ -9,6 +9,7 @@
 #include <vector>
 #include <sys/time.h>
 #include <assert.h>
+#include <python2.7/Python.h>
 
 #include <lapacke/lapacke.h> // LAPACKE/LAPACK/BLAS C library
 
@@ -16,6 +17,10 @@
 #include "cublas_v2.h"
 #include <cusolverDn.h>
 
+extern "C"
+{
+	#include <cblas.h>
+}
 
 //__global__ void cagf(float *d_real, float *d_imag, float *d_arg);
 

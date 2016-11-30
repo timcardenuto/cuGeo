@@ -1,6 +1,6 @@
 /*
  * To compile with cuBLAS and LAPACKE/LAPACK/BLAS C libraries
- * 	nvcc cuGEO.cu kernels.cu -o cuGEO -lcublas -lcusolver -llapacke -llapack -lblas
+ * 	nvcc cuGEO.cu kernels.cu -o cuGEO -lcublas -lcusolver -llapacke -llapack -lblas -lpython2.7 -lsatlas
  *
  *
 */
@@ -24,12 +24,14 @@ static int verbose = 0;
 static int vv = 0;
 static int usesmem = 0;
 static int usecmem = 0;
+static int plot = 0;
 
 // cuda device properties
 static int maxThreadsPerBlock = 0;
 
 // used to print report
 FILE *fpreport;
+FILE *geofile;
 
 // scenario data
 static float xhatx = 0.0;		// target location guess
@@ -101,6 +103,7 @@ void checkCmdArgs(int argc, char **argv) {
 			{"verbose",	no_argument, 	&verbose, 1},
 			{"smem",	no_argument, 	&usesmem, 1},
 			{"cmem",	no_argument, 	&usecmem, 1},
+			{"plot",	no_argument, 	&plot, 1},
 			{"help",	no_argument, 		0, 'h'},
 			{0,			0, 					0, 0},
 		};
@@ -360,7 +363,12 @@ void generateScenario() {
 	ay.clear();
 	z.clear();
 
+	//TODO need to turn total number of measurements into sensical block/thread sets, aka 100,000 threads and 1 block will fail.
 	n = measurements;	// this will allow the rest of the code to actually try with the user argument. If using a file, only use "measurement" number of rows
+	if (measurements > 1024) {
+
+	}
+
 
 	// builds R sensor variance identity matrix based on number of measurements
 	// TODO is this correct? either it's a scalar b/c all measurements have same variance, or it's an identity of size NxN b/c otherwise the math wouldn't work out right
@@ -404,7 +412,6 @@ void generateScenario() {
 		char line[1024];
 		while (fgets(line, 1024, fp))
 		{
-			printf("in first loop\n");
 			char* tmp = strdup(line);
 			const char* tok;
 			int num = 1;
@@ -423,11 +430,9 @@ void generateScenario() {
 				n++;
 				*/
 			}
-			printf("out of inner loop \n");
 			// NOTE strtok clobbers tmp
 			free(tmp);
 		}
-		printf("closing file\n");
 		fclose(fp);
 
 
@@ -503,13 +508,11 @@ void cpuGeolocation() {
 	// predict next state Covariance (H)
 	if (verbose) { 	printf("Predicting next state Covariance (H)...\n");
 					fprintf(fpreport,"Predicting next state Covariance (H)...\n"); }
-	std::vector<float> Hx;
-	std::vector<float> Hy;
+	float* H = (float *)malloc(sizeof(float)*n*2);
 	for (int i = 0; i < n; i++) {
-		Hx.push_back(-sin(h[i]) * (1.0/pow(((xhatx-ax[i])*(xhatx-ax[i])+(xhaty-ay[i])*(xhaty-ay[i])),0.5)));
-		Hy.push_back(cos(h[i]) * (1.0/pow(((xhatx-ax[i])*(xhatx-ax[i])+(xhaty-ay[i])*(xhaty-ay[i])),0.5)));
+		H[i] = (-sin(h[i]) * (1.0/pow(((xhatx-ax[i])*(xhatx-ax[i])+(xhaty-ay[i])*(xhaty-ay[i])),0.5))); //x
+		H[i+n] = (cos(h[i]) * (1.0/pow(((xhatx-ax[i])*(xhatx-ax[i])+(xhaty-ay[i])*(xhaty-ay[i])),0.5))); //y
 	}
-
 
 	if (DEBUG || vv) {	// print h, H
 		printf("	h =\n");
@@ -519,7 +522,7 @@ void cpuGeolocation() {
 		printf("\n");
 		printf("	H =\n");
 		for (int i = 0; i < n; i++) {
-			printf("	%f	%f\n",Hx[i],Hy[i]);
+			printf("	%f	%f\n", H[i], H[i+n]);
 		}
 		printf("\n");
 	}
@@ -533,18 +536,18 @@ void cpuGeolocation() {
 	int LDA = n; // leading dimension of array A
 	int *IPIV = (int *)malloc(sizeof(float)*N);
 	int LWORK = n;
-	float *A = (float *)malloc(sizeof(float)*LDA*N);
+	float *tempInvR = (float *)malloc(sizeof(float)*LDA*N);
 	for (int i = 0; i < n*n; i++) {
-		A[i] = R[i];
+		tempInvR[i] = R[i];
 	}
-	sgetrf_(&M, &N, A, &LDA, IPIV, &INFO);
+	sgetrf_(&M, &N, tempInvR, &LDA, IPIV, &INFO);
 	if (INFO != 0) {
 		printf("Error during matrix inversion\n");
 		fprintf(fpreport,"Error during matrix inversion\n");
 		exit(1);
 	}
 	float *WORK = (float *)malloc(sizeof(float)*LWORK);
-	sgetri_(&N, A, &LDA, IPIV, WORK, &LWORK, &INFO);
+	sgetri_(&N, tempInvR, &LDA, IPIV, WORK, &LWORK, &INFO);
 	if (INFO != 0) {
 		printf("Error during matrix inversion\n");
 		fprintf(fpreport,"Error during matrix inversion\n");
@@ -552,44 +555,161 @@ void cpuGeolocation() {
 	}
 
 	if (DEBUG || vv) {	// check inv(R) calculation
-		printf("Inverse of R = \n");
+		printf("	inv(R) = \n");
 		for (int i = 0; i < n; i++) {
 			for (int j = 0; j < n; j++) {
-				printf("	%f",A[i*n+j]);
+				printf("	%f",tempInvR[i*n+j]);
 			}
+			printf("\n");
 		}
 	}
 	
 	free(IPIV);
-	free(A);
 	free(WORK);
 
 
-	//TODO finish host version
-	// calculate eig(P)
-	// Assume P is always 2x2
-	/*printf("Calculating Eigenvalues of P\n");
-	int INFOe = 0;
-	int Ne = 2;
-	int LDZ = 2;
-	char *COMPZ = "N";
-	float *WORKe = (float *)malloc(1*sizeof(float));
-	float *Z = (float *)malloc(sizeof(LDZ*Ne)*sizeof(float));
-	//for (int i = 0; i < 4; i++) {
-	//	Z[i] = h_P[i];
-	//}
-	float *E = (float *)malloc(sizeof(Ne-1)*sizeof(float));
-	E[0] = h_P[1];
-	float *D = (float *)malloc(sizeof(Ne));
-	D[0] = h_P[0];
-	D[0] = h_P[3];
+	// H'*inv(R)
+	float *tempA = (float *)malloc(sizeof(float)*2*n);
+	cblas_sgemm(CblasColMajor,CblasTrans,CblasNoTrans,2,n,n,1.0,H,n,tempInvR,n,0.0,tempA,2);
 
-	ssteqr_(COMPZ, &Ne, D, E, Z, &LDZ, WORKe, &INFOe);
+	if (DEBUG || vv) {
+		printf("	H'*inv(R) = \n");
+		for (int i = 0; i < 2; i++) {
+			for (int j = 0; j < n; j++) {
+				printf("	%f",tempA[i+j*2]);
+			}
+			printf("\n");
+		}
+	}
 
-	if (INFOe != 0) {
+	// H'*inv(R)*H
+	float *tempB = (float *)malloc(sizeof(float)*2*2);
+	cblas_sgemm(CblasColMajor,CblasNoTrans,CblasNoTrans,2,2,n,1.0,tempA,2,H,n,0.0,tempB,2);
+
+	if (DEBUG || vv) {
+		printf("	H'*inv(R)*H = \n");
+		for (int i = 0; i < 2; i++) {
+			for (int j = 0; j < 2; j++) {
+				printf("	%f",tempB[i+j*2]);
+			}
+			printf("\n");
+		}
+	}
+
+	free(tempA);
+
+
+	// P = inv(H'*inv(R)*H)
+	N = 2;
+	M = 2;
+	LDA = 2;
+	int *ipiv = (int *)malloc(sizeof(float)*N);
+	int lwork = n;
+	sgetrf_(&M, &N, tempB, &LDA, ipiv, &INFO);
+	if (INFO != 0) {
 		printf("Error during matrix inversion\n");
+		fprintf(fpreport,"Error during matrix inversion\n");
 		exit(1);
-	}*/
+	}
+	float *work = (float *)malloc(sizeof(float)*lwork);
+	sgetri_(&M, tempB, &LDA, ipiv, work, &lwork, &INFO);
+	if (INFO != 0) {
+		printf("Error during matrix inversion\n");
+		fprintf(fpreport,"Error during matrix inversion\n");
+		exit(1);
+	}
+
+	if (DEBUG || vv) {	// check inv(R) calculation
+		printf("	P = \n");
+		for (int i = 0; i < 2; i++) {
+			for (int j = 0; j < 2; j++) {
+				printf("	%f",tempB[i+j*2]);
+			}
+			printf("\n");
+		}
+	}
+	free(ipiv);
+	free(work);
+
+	// P*H'
+	float *tempC = (float *)malloc(sizeof(float)*2*n);
+	cblas_sgemm(CblasColMajor,CblasNoTrans,CblasTrans,2,n,2,1.0,tempB,2,H,n,0.0,tempC,2);
+
+	if (DEBUG || vv) {
+		printf("	P*H' = \n");
+		for (int i = 0; i < 2; i++) {
+			for (int j = 0; j < n; j++) {
+				printf("	%f",tempC[i+j*2]);
+			}
+			printf("\n");
+		}
+	}
+
+	// P*H'*inv(R)
+	float *tempD = (float *)malloc(sizeof(float)*2*n);
+	cblas_sgemm(CblasColMajor,CblasNoTrans,CblasNoTrans,2,n,n,1.0,tempC,2,tempInvR,n,0.0,tempD,2);
+
+	if (DEBUG || vv) {
+		printf("	P*H'*inv(R) = \n");
+		for (int i = 0; i < 2; i++) {
+			for (int j = 0; j < n; j++) {
+				printf("	%f",tempD[i+j*2]);
+			}
+			printf("\n");
+		}
+	}
+	free(tempC);
+
+	// z - h
+	float* tempE = (float *)malloc(sizeof(float)*n);
+	for (int i = 0; i < n; i++) {
+		tempE[i] = z[i] - h[i];
+	}
+
+	// P*H'*inv(R)*(z-h)
+	float *tempF = (float *)malloc(sizeof(float)*2);
+	cblas_sgemm(CblasColMajor,CblasNoTrans,CblasNoTrans,2,1,n,1.0,tempD,2,tempE,n,0.0,tempF,2);
+
+	if (DEBUG || vv) {
+		printf("	P*H'*inv(R)*(z-h) = \n");
+		printf("	%f	%f\n",tempF[0],tempF[1]);
+	}
+	free(tempD);
+	free(tempE);
+
+	// xhat + P*H'*inv(R)*(z-h)
+	xhatx = xhatx + tempF[0];
+	xhaty = xhaty + tempF[1];
+	if (verbose) { 	printf("	xhat = %f, %f\n", xhatx, xhaty);
+					fprintf(fpreport,"	xhat = %f, %f\n", xhatx, xhaty); }
+	free(tempF);
+
+
+	// calculate eig(P)
+	char jobu = 'A'; // don't need eigenvectors so don't calculate columns of U or VT
+	char jobvt = 'A';
+	float* U = (float *)malloc(sizeof(float)*2*2);
+	float* VT = (float *)malloc(sizeof(float)*2*2);
+	M = 2;
+	N = 2;
+	LDA = 2;
+	int LDU = 2;
+	int LDVT = 2;
+	float Eig[2];
+	lwork = 272;
+	float* ework = (float *)malloc(sizeof(float)*lwork);
+	sgesvd_(&jobu, &jobvt, &M, &N, tempB, &LDA, Eig, U, &LDU, VT, &LDVT, ework, &lwork, &INFO);
+
+	if (DEBUG || vv) {
+		printf("	eig(P) = \n");
+		printf("	%f, %f\n",Eig[0],Eig[1]);
+	}
+
+
+	free(tempInvR);
+	free(tempB);
+
+	printf("\n");
 
 
 	clock_gettime(CLOCK_REALTIME, &tp2);
@@ -1203,15 +1323,20 @@ void cudaGeolocation() {
 
 	float *h_semi = (float *)malloc(Emem_size);
 	cudaMemcpy(h_semi, d_tempi, Emem_size, cudaMemcpyDeviceToHost);
-	if (verbose) { 	printf("	semimajor = %f\n",h_semi[0]);
+	if (verbose) { 	printf("	semimajor = %f\n",h_semi[0]);			// semimajor is always first, output of calculation orders values based on magnitude
 					printf("	semiminor = %f\n",h_semi[1]);
 					printf("\n");
 					fprintf(fpreport,"	semimajor = %f\n",h_semi[0]);
 					fprintf(fpreport,"	semiminor = %f\n",h_semi[1]);
 					fprintf(fpreport,"\n"); }
 
-	if (d_Eig    ) cudaFree(d_Eig);
+	if (d_Eig  ) cudaFree(d_Eig);
 	if (d_tempi) cudaFree(d_tempi);
+
+
+	//TODO loop here when calculating multiple geolocations
+
+
 
 
 	/*  MATLAB output to check against for two DOA measurement values
@@ -1333,7 +1458,7 @@ void cudaGeolocation() {
 	cudaFree(d_H);		
 	cudaFree(d_Rinv);	
 	cudaFree(d_P);
-	if (h_semi)  free(h_semi);
+
 	if (cublas_handle) cublasDestroy_v2(cublas_handle);
 	if (cusolver_handle) cusolverDnDestroy(cusolver_handle);
 	cudaDeviceReset();
@@ -1368,6 +1493,16 @@ void cudaGeolocation() {
 					printf("\n");
 					fprintf(fpreport,"\n");
 					fflush(fpreport); }
+
+	// save geolocations in csv file
+	geofile = fopen("georesults.csv", "w");
+	fprintf(geofile, "%f,%f,%f,%f\n", xhatx, xhaty, h_semi[0], h_semi[1]);
+	if (fclose(geofile) != 0) {
+		fprintf(stderr,"Failed to close data file %s with error %d\n", "georesults.csv", errno);
+		exit(1);
+	}
+
+	if (h_semi)  free(h_semi);
 }
 
 
@@ -1408,21 +1543,21 @@ int main(int argc, char **argv) {
 		printf("\n##### Executing CUDA Geo Benchmarking Routine #####\n");
 		fprintf(fpreport,"\n##### Executing CUDA Geo Benchmarking Routine #####\n");
 		int minblocks = 1;
-		int maxblocks = chunk; // there is effectively no max (my GPU is 2147483647 in dim[0]) so max is 1 thread per block
+		int maxblocks = measurements; // there is effectively no max (my GPU is 2147483647 in dim[0]) so max is 1 thread per block
 
 		// calculate min based on max threads per block
-		if (chunk%maxThreadsPerBlock == 0) {
-			minblocks = chunk / maxThreadsPerBlock;
+		if (measurements%maxThreadsPerBlock == 0) {
+			minblocks = measurements / maxThreadsPerBlock;
 		} else {
-			printf("Caution, data chunk is not evenly divisible by maxThreadsPerBlock, could have issues...\n");
-			fprintf(fpreport,"Caution, data chunk is not evenly divisible by maxThreadsPerBlock, could have issues...\n");
-			minblocks = chunk / maxThreadsPerBlock + 1;
+			printf("Caution, number of measurements is not evenly divisible by maxThreadsPerBlock, could have issues...\n");
+			fprintf(fpreport,"Caution, number of measurements is not evenly divisible by maxThreadsPerBlock, could have issues...\n");
+			minblocks = measurements / maxThreadsPerBlock + 1;
 		}
 
 
 		// TODO for now we'll reduce thread count per block by factor of 2 each iteration (or increase block count by factor of 2)
 		//for (blocks = minblocks; blocks < maxblocks; blocks = blocks*2) {
-
+		blocks = minblocks;
 			/*threads = chunk / blocks;
 			if (chunk%blocks != 0) {
 				printf("Something went wrong, data chunk is not evenly divisible by # of blocks...\n");
@@ -1520,5 +1655,14 @@ int main(int argc, char **argv) {
 		fprintf(stderr,"Failed to close data file %s with error %d\n", "report.txt", errno);
 		exit(1);
 	}
+
+	// execute Python plot script
+	if(plot) {
+		Py_Initialize();
+		FILE* pyfile = fopen("plot.py", "r");
+		PyRun_SimpleFileEx(pyfile, "plot.py", 1);
+		Py_Finalize();
+	}
+
 	exit(0);
 }

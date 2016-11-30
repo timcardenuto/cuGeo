@@ -1,2 +1,56 @@
 ##### Starting cuAMC! #####
 
+
+##### Host CUDA Properties ##### 
+Runtime Version:	7050
+Driver Version:		8000
+
+
+##### GPU Device 0 Properties ##### 
+Device Name:		GeForce GTX 770
+Compute Capability:	3.0
+Multi-Processors:	8
+Threads per Warp:	32
+Threads per Block:	1024
+Registers per Block:	65536
+Shared Mem per Block:	49152
+Constant Memory:	65536
+Global Memory:		2095382528
+Max Block Dimensions:	[1024, 1024, 64]
+Max Grid Dimensions:	[2147483647, 65535, 65535]
+Concurrent Kernel Execution:		1
+Concurrent Memcpy and Kernel Execution:	1
+
+
+##### Executing CUDA Geo Benchmarking Routine #####
+Caution, data chunk is not evenly divisible by maxThreadsPerBlock, could have issues...
+
+##### Completed CUDA Geo Benchmarking Routine #####
+Memory used:		mixed memory
+Blocks used:		1
+Threads used:		1024
+Iterations:		1
+Num measurements:	3
+
+Fastest execution time for entire C/C++ Geo-location algorithm: 0 s, 64 us
+Slowest execution time for entire C/C++ Geo-location algorithm: 0 s, 0 us
+Average execution time for entire C/C++ Geo-location algorithm: 0 s, 64 us
+
+Fastest execution time for entire CUDA Geo-location algorithm: 0 s, 216431 us using 1 blocks and 1024 threads
+Slowest execution time for entire CUDA Geo-location algorithm: 0 s, 0 us using 0 blocks and 0 threads
+Average execution time for entire CUDA Geo-location algorithm: 0 s, 216431 us
+
+Fastest parameterPrediction kernel execution: 0.014048 ms using 1 blocks and 1024 threads
+Average parameterPrediction kernel execution: 0.014048 ms
+
+Fastest covariancePrediction kernel execution: 0.007200 ms using 1 blocks and 1024 threads
+Average covariancePrediction kernel execution: 0.007200 ms
+
+Fastest subtract kernel execution: 0.010624 ms using 1 blocks and 1024 threads
+Average subtract kernel execution: 0.010624 ms
+
+Fastest semiMajMin kernel execution: 0.011776 ms using 1 blocks and 1024 threads
+Average semiMajMin kernel execution: 0.011776 ms
+
+
+Done
