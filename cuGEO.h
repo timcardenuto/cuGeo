@@ -56,10 +56,10 @@ void errCheck(cudaError_t cudaError);
 
 void checkDeviceProperties();
 
-void generateScenario();
+float* generateScenario();
 
-void cpuGeolocation();
+void cpuGeolocation(float *z);
 
-void cudaGeolocation();
+void cudaGeolocation(float *z);
 
 int main(int argc, char **argv);

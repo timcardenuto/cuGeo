@@ -23,5 +23,6 @@ with open("georesults.csv",'rt') as sf:
           pyplot.plot((ellipse[0]+float(row[0]))/1852, (ellipse[1]+float(row[1]))/1852)
 
 pyplot.show()
+	
 
 #TODO live plotting?
