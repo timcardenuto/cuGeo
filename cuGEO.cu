@@ -14,17 +14,18 @@
 static long int device = 0;
 static long int blocks = 1;
 static long int threads = 3;
-static long int chunk = 1;
-static int optimal = 1;
 static char *file;
 static char *config;
 static long int iterations = 1;
 static long int measurements = 3;
 static int verbose = 0;
 static int vv = 0;
+static int benchmark = 0;
+static int plot = 0;
 static int usesmem = 0;
 static int usecmem = 0;
-static int plot = 0;
+static int blocksflag = 0;
+static int threadsflag = 0;
 
 // cuda device properties
 static int maxThreadsPerBlock = 0;
@@ -32,7 +33,7 @@ static int maxThreadsPerBlock = 0;
 // used to print report
 FILE *fpreport;
 FILE *geofile;
-FILE *benchmark;
+FILE *benchmarkfile;
 
 // scenario data
 static float xhatx = 0.0;		// target location guess
@@ -61,26 +62,31 @@ unsigned long  fastcexecus = 1000000000, worstcexecus = 0, avgcexecus = 0;
 
 /* help message block */
 void displayCmdUsage() {
-	puts("Usage: ./cuGEO [OPTION] \n \
-	-d	--device	Specify which GPU to use, defaults to 0. \n \
-	-b	--blocks	Number of blocks to use, defaults to 1. \n \
-	-t	--threads	Number of threads to assign per block, defaults to the number of elements in your data set. \n \
-	-f	--file		Path to data file that will be processed, default is auto-generated random data. NOTE: the only currently supported file\n \
-				 types are CSV containing DOA measurements in the first column, the 'x' parameter of the measurement location in the second column\n \
-				 and the 'y' parameter of the measurement location in the third column. The last row contains sigma values (assumes single sensor) \n \
-	--find-optimal		Flag used with --chunk, loops kernel execution over a range of block/thread sizes based on the data chunk size \n \
-				Does not work when specifying block/thread numbers manually \n \
-	-c	--chunk		Number of elements from data set to process per pass on this device, aka chunk size. Can be thought of as a packet \n \
-				size when performing streaming operations. Will typically be equal to *total* number of threads for the device, ex. \n \
-				to process a chunk of 8192 elements on 8 blocks => implies 1024 threads per block. If there is only a single block used, \n \
-				then the number of threads per block = total chunk size. You do not need to use all parameters - given a lack of information \n \
-				this program will attempt to distribute the processing in a optimal way. \n \
-	-m	--measurements	Number of measurements to include in the geolocation calculation \n \
-	-x	--configure		Path to configuration file. Any parameters specified on the command line will override the equivalent ones in this file \n \
-	-v	--verbose		Prints output of each kernel \n \
-	-s	--smem		Uses shared memory kernels for comparison \n \
-	    --cmem		Uses constant memory kernels for comparison\n \
-	    --help		Display this message \n");
+	puts("Usage: ./cuGEO [OPTION] \n\
+	-d	--device	Specify which GPU to use, defaults to 0. \n\
+	-b	--blocks	Number of blocks to use. Does not need to be specified, will auto-distribute \n\
+				based on number of measurements. \n\
+	-t	--threads	Number of threads to assign per block. Does not need to be specified, will \n\
+				auto-distribute based on number of measurements. \n\
+	-f	--file		Path to data file that will be processed, default is auto-generated random \n\
+				data. NOTE: the only currently supported file types are CSV containing DOA\n\
+				measurements in the first column, the 'x' parameter of the measurement \n\
+				location in the second column and the 'y' parameter of the measurement \n\
+				location in the third column. The last row contains sigma values (assumes\n\
+				single sensor) \n\
+	-m	--measurements	Number of measurements to include in the geolocation calculation \n\
+		--iterations	Number of times to re-run a single instance, used to help determine average\n\
+				execution times. !!Will stack with --benchmark!! \n\
+		--benchmark	Tests execution times starting at 3 data points and doubling each run until\n\
+				the number of --measurements is reached \n\
+	-p	--plot		Plots the geolocations, target locations and ellipses \n\
+	-s	--smem		Uses shared memory kernels for comparison \n\
+	-c	--cmem		Uses constant memory kernels for comparison\n\
+	-x	--configure	Path to configuration file. Any parameters specified on the command line \n\
+				will override the equivalent ones in this file \n\
+	-v	--verbose	Prints additional output \n\
+		--vv		Additional debug type information, including the output of EVERY operation \n\
+		--help		Display this message \n");
 	exit(1);
 }
 
@@ -96,13 +102,12 @@ void checkCmdArgs(int argc, char **argv) {
 			{"blocks",	required_argument, 	0, 'b'},
 			{"threads",	required_argument, 	0, 't'},
 			{"file",	required_argument, 	0, 'f'},
-			{"find-optimal",	no_argument, 	&optimal, 1},
-			{"chunk",	required_argument, 	0, 'c'},
 			{"measurements",	required_argument, 	0, 'm'},
 			{"iterations",	required_argument, 	0, 'i'},
 			{"configure",	required_argument, 	0, 'x'},
 			{"vv",	no_argument, 	&vv, 1},
 			{"verbose",	no_argument, 	&verbose, 1},
+			{"benchmark",	no_argument, 	&benchmark, 1},
 			{"smem",	no_argument, 	&usesmem, 1},
 			{"cmem",	no_argument, 	&usecmem, 1},
 			{"plot",	no_argument, 	&plot, 1},
@@ -110,7 +115,7 @@ void checkCmdArgs(int argc, char **argv) {
 			{0,			0, 					0, 0},
 		};
 
-		c = getopt_long_only(argc, argv, "d:b:t:f:c:m:i:x:hvs", long_options, &option_index);
+		c = getopt_long_only(argc, argv, "d:b:t:f:c:m:i:x:hvsc", long_options, &option_index);
 
 		if (c == -1) {
             break;
@@ -136,6 +141,7 @@ void checkCmdArgs(int argc, char **argv) {
 		        break;
 			case 'b':
 				blocks = strtoul(optarg, &ptr, 10);
+				blocksflag = 1;
 				if (strcmp(ptr,"")) {
 					printf("Value %s of option %s is not a number \n", ptr, long_options[option_index].name);
 					exit(1);
@@ -143,13 +149,7 @@ void checkCmdArgs(int argc, char **argv) {
 		        break;
        		case 't':
 				threads = strtoul(optarg, &ptr, 10);
-				if (strcmp(ptr,"")) {
-					printf("Value %s of option %s is not a number \n", ptr, long_options[option_index].name);
-					exit(1);
-				}
-		        break;
-       		case 'c':
-				chunk = strtoul(optarg, &ptr, 10);
+				threadsflag = 1;
 				if (strcmp(ptr,"")) {
 					printf("Value %s of option %s is not a number \n", ptr, long_options[option_index].name);
 					exit(1);
@@ -182,7 +182,10 @@ void checkCmdArgs(int argc, char **argv) {
        		case 's':
 				usesmem = 1;
 				break;
-			default:
+       		case 'c':
+				usecmem = 1;
+				break;
+       		default:
 				displayCmdUsage();
 	    }
 	}
@@ -220,22 +223,19 @@ void parseConfig() {
 			} else if (strcmp(pch,"blocks") == 0) {
 				pch = strtok (NULL, "=");
 				blocks = strtoul(pch, &str, 10);
+				blocksflag = 1;
 				printf("	Blocks option set to %i\n", blocks);
 
 			} else if (strcmp(pch,"threads") == 0) {
 				pch = strtok (NULL, "=");
 				threads = strtoul(pch, &str, 10);
+				threadsflag = 1;
 				printf("	Threads option set to %i\n", threads);
 
 			} else if (strcmp(pch,"file") == 0) {
 				pch = strtok (NULL, "=");
 				file = pch;
 				printf("	File option set to %i\n", file);
-
-			} else if (strcmp(pch,"chunk") == 0) {
-				pch = strtok (NULL, "=");
-				chunk = strtoul(pch, &str, 10);
-				printf("	Chunk option set to %i\n", chunk);
 
 			} else if (strcmp(pch,"measurements") == 0) {
 				pch = strtok (NULL, "=");
@@ -247,15 +247,15 @@ void parseConfig() {
 					iterations = strtoul(pch, &str, 10);
 					printf("	Iterations option set to %i\n", iterations);
 
-			} else if (strcmp(pch,"optimal") == 0) {
-				pch = strtok (NULL, "=");
-				optimal= strtoul(pch, &str, 10);
-				printf("	Optimal option set to %i\n", optimal);
-
 			} else if (strcmp(pch,"verbose") == 0) {
 				pch = strtok (NULL, "=");
 				verbose = strtoul(pch, &str, 10);
 				printf("	Verbose option set to %i\n", verbose);
+
+			} else if (strcmp(pch,"benchmark") == 0) {
+				pch = strtok (NULL, "=");
+				benchmark = strtoul(pch, &str, 10);
+				printf("	Benchmark option set to %i\n", benchmark);
 
 			} else {
 				printf("Error, unknown option %s \n",pch);
@@ -539,9 +539,10 @@ void cpuGeolocation(float *z) {
 	int M = n;
 	int LDA = n; // leading dimension of array A
 	int *IPIV = (int *)malloc(sizeof(float)*N);
-	int LWORK = n;
 	float *tempInvR = (float *)malloc(sizeof(float)*LDA*N);
-	/*for (int i = 0; i < n*n; i++) {
+	/*
+	int LWORK = n;
+	for (int i = 0; i < n*n; i++) {
 		tempInvR[i] = R[i];
 	}
 	sgetrf_(&M, &N, tempInvR, &LDA, IPIV, &INFO);
@@ -772,7 +773,7 @@ void cpuGeolocation(float *z) {
 					fprintf(fpreport,"\n");
 					fflush(fpreport); }
 
-	fprintf(benchmark, "%i,%lu,", (int)s2, us2);
+	fprintf(benchmarkfile, "%i,%lu,", (int)s2, us2);
 }
 
 
@@ -1592,7 +1593,7 @@ void cudaGeolocation(float *z) {
 	}
 	if (h_semi)  free(h_semi);
 
-	fprintf(benchmark, "%i,%lu,%i,%lu,", (int)s1, us1, (int)s2, us2);
+	fprintf(benchmarkfile, "%i,%lu,%i,%lu,", (int)s1, us1, (int)s2, us2);
 }
 
 
@@ -1606,17 +1607,21 @@ int main(int argc, char **argv) {
 		exit(1);
 	}
 
-	printf("##### Starting cuAMC! #####\n\n");
-	fprintf(fpreport,"##### Starting cuAMC! #####\n\n");
+	printf("##### Starting cuGEO! #####\n\n");
+	fprintf(fpreport,"##### Starting cuGEO! #####\n\n");
 
 	checkCmdArgs(argc, argv);
 
 	checkDeviceProperties();
 
-	benchmark = fopen("benchmark.csv", "w");
-	fprintf(benchmark, "C/C++ execute s, C/C++ execute us, CUDA memcpy s, CUDA memcpy us, CUDA execute s, CUDA execute us, threads, blocks\n");
+	benchmarkfile = fopen("benchmark.csv", "w");
+	fprintf(benchmarkfile, "C/C++ execute s, C/C++ execute us, CUDA memcpy s, CUDA memcpy us, CUDA execute s, CUDA execute us, threads, blocks\n");
 	int final_measurements = measurements;
 	for (measurements = 3; measurements <= final_measurements; measurements = measurements*2) { 		// TODO might want to re-arrange these nested loops
+
+		if (!benchmark) {						// makes sure that people WANT to run all the iterations, otherwise only do the final one (requested measurements)
+			measurements = final_measurements;
+		}
 
 		float *zgen = generateScenario();
 
@@ -1647,8 +1652,23 @@ int main(int argc, char **argv) {
 
 		// TODO for now we'll reduce thread count per block by factor of 2 each iteration (or increase block count by factor of 2)
 		//for (blocks = minblocks; blocks < maxblocks; blocks = blocks*2) {
-		blocks = minblocks;
-		threads = measurements / blocks;
+
+		if (!blocksflag && !threadsflag) {	// If blocksflag wasn't set, then use smart block/thread count
+			blocks = minblocks;
+			threads = measurements / blocks;
+		} else if (blocksflag && !threadsflag) {
+			threads = measurements / blocks;
+		} else if (threadsflag && !blocksflag) {
+			blocks = measurements / threads;
+		} else {
+			// if both blocks and threads were set by user, then let 'em have it
+			if (threads*blocks != measurements) {
+				fprintf(stderr,"Error, chosen parameters are nonsense:	%i threads * %i blocks != %i measurements\n", threads, blocks, measurements);
+				fprintf(stderr, "Try NOT picking specific thread/block counts. I can figure it out from the number of measurements.");
+				exit(1);
+			}
+		}
+
 		printf(" 		blocks used = %i\n", blocks);
 		printf(" 		threads used = %i\n", threads);
 
@@ -1669,7 +1689,7 @@ int main(int argc, char **argv) {
 				cudaGeolocation(zgen);
 			}
 
-			fprintf(benchmark, "%i,%i,%i\n", threads, blocks, measurements);
+			fprintf(benchmarkfile, "%i,%i,%i\n", threads, blocks, measurements);
 
 			// compute averages
 			// TODO remember to check how the average is done when multiple iterations of the same block/thread are run vice multiple iterations with different thread/blocks
@@ -1741,7 +1761,7 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	if (fclose(benchmark) != 0) {
+	if (fclose(benchmarkfile) != 0) {
 		fprintf(stderr,"Failed to close data file %s with error %d\n", "benchmark.csv", errno);
 		exit(1);
 	}

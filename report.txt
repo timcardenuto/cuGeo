@@ -1,8 +1,8 @@
-##### Starting cuAMC! #####
+##### Starting cuGEO! #####
 
 
 ##### Host CUDA Properties ##### 
-Runtime Version:	7050
+Runtime Version:	8000
 Driver Version:		8000
 
 
@@ -22,35 +22,1197 @@ Concurrent Kernel Execution:		1
 Concurrent Memcpy and Kernel Execution:	1
 
 
+##### Generating Geo Scenario #####
+##### Executing C/C++ Geo Routine #####
+Predicting next parameter state (h)...
+Predicting next state Covariance (H)...
+Calculating inverse of R ...
+	xhat = 1242.924316, 1000.708496
+
+Calculating 95% semimajor, semiminor ellipse bounds 
+	semimajor = 1953.593384
+	semiminor = 465.131592
+
+C/C++ Geolocation execution time: 0 s  150 us
+
+
+##### Generating Geo Scenario #####
+
 ##### Executing CUDA Geo Benchmarking Routine #####
-Caution, data chunk is not evenly divisible by maxThreadsPerBlock, could have issues...
+Caution, number of measurements is not evenly divisible by maxThreadsPerBlock, could have issues...
+## Testing 1 blocks of 3 threads ##
+
+##### Executing CUDA Geo Routine #####
+Allocating host memory...
+Allocating device memory...
+Copying data from host memory to GPU memory
+Memcpy from host to GPU execution time: 0.012448 ms
+CUDA Geolocation memory allocation time: 0 s  198319 us
+
+
+Launching parameterPrediction CUDA kernel
+	parameterPrediction execution time: 0.022656 ms
+Launching covariancePrediction CUDA kernel
+	covariancePrediction execution time: 0.014848 ms
+
+
+Launching short matrix inversion for single sigma: inv(3x3) 
+
+Launching matrix multiplication using cuBLAS: 3x2 * 3x3 
+
+Launching matrix multiplication using cuBLAS: 2x3 * 3x2 
+
+Launching matrix inversion using cuBLAS: inv(2x2) 
+
+Launching matrix multiplication using cuBLAS: 2x2 * 3x2 
+
+Launching matrix multiplication using cuBLAS: 2x3 * 3x3 
+
+Calculating measurement error: 3x1 - 3x1 
+	Thread execution time: 0.009952 ms
+
+Launching matrix multiplication using cuBLAS: 2x3 * 3x1 
+
+Updating estimated target location 
+	xhat = 1242.924805, 1000.707764
+
+Calculating eigenvalues of covariance matrix P using cuSOLVER: eig(2x2)
+
+Calculating 95% semimajor, semiminor ellipse bounds 
+	Thread execution time: 0.011200 ms
+	semimajor = 1953.593018
+	semiminor = 465.131622
+
+CUDA Geolocation execution time: 0 s  32934 us
+
 
 ##### Completed CUDA Geo Benchmarking Routine #####
 Memory used:		mixed memory
 Blocks used:		1
-Threads used:		1024
+Threads used:		3
 Iterations:		1
 Num measurements:	3
 
-Fastest execution time for entire C/C++ Geo-location algorithm: 0 s, 64 us
+Fastest execution time for entire C/C++ Geo-location algorithm: 0 s, 150 us
 Slowest execution time for entire C/C++ Geo-location algorithm: 0 s, 0 us
-Average execution time for entire C/C++ Geo-location algorithm: 0 s, 64 us
+Average execution time for entire C/C++ Geo-location algorithm: 0 s, 150 us
 
-Fastest execution time for entire CUDA Geo-location algorithm: 0 s, 216431 us using 1 blocks and 1024 threads
+Fastest execution time for entire CUDA Geo-location algorithm: 0 s, 32934 us using 1 blocks and 3 threads
 Slowest execution time for entire CUDA Geo-location algorithm: 0 s, 0 us using 0 blocks and 0 threads
-Average execution time for entire CUDA Geo-location algorithm: 0 s, 216431 us
+Average execution time for entire CUDA Geo-location algorithm: 0 s, 32934 us
 
-Fastest parameterPrediction kernel execution: 0.014048 ms using 1 blocks and 1024 threads
-Average parameterPrediction kernel execution: 0.014048 ms
+Fastest parameterPrediction kernel execution: 0.022656 ms using 1 blocks and 3 threads
+Average parameterPrediction kernel execution: 0.022656 ms
 
-Fastest covariancePrediction kernel execution: 0.007200 ms using 1 blocks and 1024 threads
-Average covariancePrediction kernel execution: 0.007200 ms
+Fastest covariancePrediction kernel execution: 0.014848 ms using 1 blocks and 3 threads
+Average covariancePrediction kernel execution: 0.014848 ms
 
-Fastest subtract kernel execution: 0.010624 ms using 1 blocks and 1024 threads
-Average subtract kernel execution: 0.010624 ms
+Fastest subtract kernel execution: 0.009952 ms using 1 blocks and 3 threads
+Average subtract kernel execution: 0.009952 ms
 
-Fastest semiMajMin kernel execution: 0.011776 ms using 1 blocks and 1024 threads
-Average semiMajMin kernel execution: 0.011776 ms
+Fastest semiMajMin kernel execution: 0.011200 ms using 1 blocks and 3 threads
+Average semiMajMin kernel execution: 0.011200 ms
+
+
+##### Generating Geo Scenario #####
+##### Executing C/C++ Geo Routine #####
+Predicting next parameter state (h)...
+Predicting next state Covariance (H)...
+Calculating inverse of R ...
+	xhat = 1018.115967, 975.790039
+
+Calculating 95% semimajor, semiminor ellipse bounds 
+	semimajor = 1952.648560
+	semiminor = 398.588318
+
+C/C++ Geolocation execution time: 0 s  84 us
+
+
+##### Generating Geo Scenario #####
+
+##### Executing CUDA Geo Benchmarking Routine #####
+Caution, number of measurements is not evenly divisible by maxThreadsPerBlock, could have issues...
+## Testing 1 blocks of 6 threads ##
+
+##### Executing CUDA Geo Routine #####
+Allocating host memory...
+Allocating device memory...
+Copying data from host memory to GPU memory
+Memcpy from host to GPU execution time: 0.017568 ms
+CUDA Geolocation memory allocation time: 0 s  126573 us
+
+
+Launching parameterPrediction CUDA kernel
+	parameterPrediction execution time: 0.016576 ms
+Launching covariancePrediction CUDA kernel
+	covariancePrediction execution time: 0.013984 ms
+
+
+Launching short matrix inversion for single sigma: inv(6x6) 
+
+Launching matrix multiplication using cuBLAS: 6x2 * 6x6 
+
+Launching matrix multiplication using cuBLAS: 2x6 * 6x2 
+
+Launching matrix inversion using cuBLAS: inv(2x2) 
+
+Launching matrix multiplication using cuBLAS: 2x2 * 6x2 
+
+Launching matrix multiplication using cuBLAS: 2x6 * 6x6 
+
+Calculating measurement error: 6x1 - 6x1 
+	Thread execution time: 0.010464 ms
+
+Launching matrix multiplication using cuBLAS: 2x6 * 6x1 
+
+Updating estimated target location 
+	xhat = 1018.116455, 975.789062
+
+Calculating eigenvalues of covariance matrix P using cuSOLVER: eig(2x2)
+
+Calculating 95% semimajor, semiminor ellipse bounds 
+	Thread execution time: 0.011072 ms
+	semimajor = 1952.648193
+	semiminor = 398.588379
+
+CUDA Geolocation execution time: 0 s  32958 us
+
+
+##### Completed CUDA Geo Benchmarking Routine #####
+Memory used:		mixed memory
+Blocks used:		1
+Threads used:		6
+Iterations:		1
+Num measurements:	6
+
+Fastest execution time for entire C/C++ Geo-location algorithm: 0 s, 84 us
+Slowest execution time for entire C/C++ Geo-location algorithm: 0 s, 0 us
+Average execution time for entire C/C++ Geo-location algorithm: 0 s, 234 us
+
+Fastest execution time for entire CUDA Geo-location algorithm: 0 s, 32934 us using 1 blocks and 3 threads
+Slowest execution time for entire CUDA Geo-location algorithm: 0 s, 32958 us using 1 blocks and 6 threads
+Average execution time for entire CUDA Geo-location algorithm: 0 s, 65892 us
+
+Fastest parameterPrediction kernel execution: 0.016576 ms using 1 blocks and 6 threads
+Average parameterPrediction kernel execution: 0.039232 ms
+
+Fastest covariancePrediction kernel execution: 0.013984 ms using 1 blocks and 6 threads
+Average covariancePrediction kernel execution: 0.028832 ms
+
+Fastest subtract kernel execution: 0.009952 ms using 1 blocks and 3 threads
+Average subtract kernel execution: 0.020416 ms
+
+Fastest semiMajMin kernel execution: 0.011072 ms using 1 blocks and 6 threads
+Average semiMajMin kernel execution: 0.022272 ms
+
+
+##### Generating Geo Scenario #####
+##### Executing C/C++ Geo Routine #####
+Predicting next parameter state (h)...
+Predicting next state Covariance (H)...
+Calculating inverse of R ...
+	xhat = 802.911621, 951.932129
+
+Calculating 95% semimajor, semiminor ellipse bounds 
+	semimajor = 1951.770142
+	semiminor = 322.096497
+
+C/C++ Geolocation execution time: 0 s  71 us
+
+
+##### Generating Geo Scenario #####
+
+##### Executing CUDA Geo Benchmarking Routine #####
+Caution, number of measurements is not evenly divisible by maxThreadsPerBlock, could have issues...
+## Testing 1 blocks of 12 threads ##
+
+##### Executing CUDA Geo Routine #####
+Allocating host memory...
+Allocating device memory...
+Copying data from host memory to GPU memory
+Memcpy from host to GPU execution time: 0.017824 ms
+CUDA Geolocation memory allocation time: 0 s  126764 us
+
+
+Launching parameterPrediction CUDA kernel
+	parameterPrediction execution time: 0.016256 ms
+Launching covariancePrediction CUDA kernel
+	covariancePrediction execution time: 0.014208 ms
+
+
+Launching short matrix inversion for single sigma: inv(12x12) 
+
+Launching matrix multiplication using cuBLAS: 12x2 * 12x12 
+
+Launching matrix multiplication using cuBLAS: 2x12 * 12x2 
+
+Launching matrix inversion using cuBLAS: inv(2x2) 
+
+Launching matrix multiplication using cuBLAS: 2x2 * 12x2 
+
+Launching matrix multiplication using cuBLAS: 2x12 * 12x12 
+
+Calculating measurement error: 12x1 - 12x1 
+	Thread execution time: 0.010720 ms
+
+Launching matrix multiplication using cuBLAS: 2x12 * 12x1 
+
+Updating estimated target location 
+	xhat = 802.912109, 951.933594
+
+Calculating eigenvalues of covariance matrix P using cuSOLVER: eig(2x2)
+
+Calculating 95% semimajor, semiminor ellipse bounds 
+	Thread execution time: 0.010848 ms
+	semimajor = 1951.769897
+	semiminor = 322.096069
+
+CUDA Geolocation execution time: 0 s  32794 us
+
+
+##### Completed CUDA Geo Benchmarking Routine #####
+Memory used:		mixed memory
+Blocks used:		1
+Threads used:		12
+Iterations:		1
+Num measurements:	12
+
+Fastest execution time for entire C/C++ Geo-location algorithm: 0 s, 71 us
+Slowest execution time for entire C/C++ Geo-location algorithm: 0 s, 0 us
+Average execution time for entire C/C++ Geo-location algorithm: 0 s, 305 us
+
+Fastest execution time for entire CUDA Geo-location algorithm: 0 s, 32794 us using 1 blocks and 12 threads
+Slowest execution time for entire CUDA Geo-location algorithm: 0 s, 32958 us using 1 blocks and 6 threads
+Average execution time for entire CUDA Geo-location algorithm: 0 s, 98686 us
+
+Fastest parameterPrediction kernel execution: 0.016256 ms using 1 blocks and 12 threads
+Average parameterPrediction kernel execution: 0.055488 ms
+
+Fastest covariancePrediction kernel execution: 0.013984 ms using 1 blocks and 6 threads
+Average covariancePrediction kernel execution: 0.043040 ms
+
+Fastest subtract kernel execution: 0.009952 ms using 1 blocks and 3 threads
+Average subtract kernel execution: 0.031136 ms
+
+Fastest semiMajMin kernel execution: 0.010848 ms using 1 blocks and 12 threads
+Average semiMajMin kernel execution: 0.033120 ms
+
+
+##### Generating Geo Scenario #####
+##### Executing C/C++ Geo Routine #####
+Predicting next parameter state (h)...
+Predicting next state Covariance (H)...
+Calculating inverse of R ...
+	xhat = 637.259521, 933.558594
+
+Calculating 95% semimajor, semiminor ellipse bounds 
+	semimajor = 1951.108032
+	semiminor = 247.473114
+
+C/C++ Geolocation execution time: 0 s  72 us
+
+
+##### Generating Geo Scenario #####
+
+##### Executing CUDA Geo Benchmarking Routine #####
+Caution, number of measurements is not evenly divisible by maxThreadsPerBlock, could have issues...
+## Testing 1 blocks of 24 threads ##
+
+##### Executing CUDA Geo Routine #####
+Allocating host memory...
+Allocating device memory...
+Copying data from host memory to GPU memory
+Memcpy from host to GPU execution time: 0.016256 ms
+CUDA Geolocation memory allocation time: 0 s  126237 us
+
+
+Launching parameterPrediction CUDA kernel
+	parameterPrediction execution time: 0.016512 ms
+Launching covariancePrediction CUDA kernel
+	covariancePrediction execution time: 0.014592 ms
+
+
+Launching short matrix inversion for single sigma: inv(24x24) 
+
+Launching matrix multiplication using cuBLAS: 24x2 * 24x24 
+
+Launching matrix multiplication using cuBLAS: 2x24 * 24x2 
+
+Launching matrix inversion using cuBLAS: inv(2x2) 
+
+Launching matrix multiplication using cuBLAS: 2x2 * 24x2 
+
+Launching matrix multiplication using cuBLAS: 2x24 * 24x24 
+
+Calculating measurement error: 24x1 - 24x1 
+	Thread execution time: 0.010112 ms
+
+Launching matrix multiplication using cuBLAS: 2x24 * 24x1 
+
+Updating estimated target location 
+	xhat = 637.262207, 933.565186
+
+Calculating eigenvalues of covariance matrix P using cuSOLVER: eig(2x2)
+
+Calculating 95% semimajor, semiminor ellipse bounds 
+	Thread execution time: 0.011136 ms
+	semimajor = 1951.110596
+	semiminor = 247.473007
+
+CUDA Geolocation execution time: 0 s  32698 us
+
+
+##### Completed CUDA Geo Benchmarking Routine #####
+Memory used:		mixed memory
+Blocks used:		1
+Threads used:		24
+Iterations:		1
+Num measurements:	24
+
+Fastest execution time for entire C/C++ Geo-location algorithm: 0 s, 71 us
+Slowest execution time for entire C/C++ Geo-location algorithm: 0 s, 72 us
+Average execution time for entire C/C++ Geo-location algorithm: 0 s, 377 us
+
+Fastest execution time for entire CUDA Geo-location algorithm: 0 s, 32698 us using 1 blocks and 24 threads
+Slowest execution time for entire CUDA Geo-location algorithm: 0 s, 32958 us using 1 blocks and 6 threads
+Average execution time for entire CUDA Geo-location algorithm: 0 s, 131384 us
+
+Fastest parameterPrediction kernel execution: 0.016256 ms using 1 blocks and 12 threads
+Average parameterPrediction kernel execution: 0.072000 ms
+
+Fastest covariancePrediction kernel execution: 0.013984 ms using 1 blocks and 6 threads
+Average covariancePrediction kernel execution: 0.057632 ms
+
+Fastest subtract kernel execution: 0.009952 ms using 1 blocks and 3 threads
+Average subtract kernel execution: 0.041248 ms
+
+Fastest semiMajMin kernel execution: 0.010848 ms using 1 blocks and 12 threads
+Average semiMajMin kernel execution: 0.044256 ms
+
+
+##### Generating Geo Scenario #####
+##### Executing C/C++ Geo Routine #####
+Predicting next parameter state (h)...
+Predicting next state Covariance (H)...
+Calculating inverse of R ...
+	xhat = 529.860840, 921.728027
+
+Calculating 95% semimajor, semiminor ellipse bounds 
+	semimajor = 1950.694458
+	semiminor = 183.470840
+
+C/C++ Geolocation execution time: 0 s  91 us
+
+
+##### Generating Geo Scenario #####
+
+##### Executing CUDA Geo Benchmarking Routine #####
+Caution, number of measurements is not evenly divisible by maxThreadsPerBlock, could have issues...
+## Testing 1 blocks of 48 threads ##
+
+##### Executing CUDA Geo Routine #####
+Allocating host memory...
+Allocating device memory...
+Copying data from host memory to GPU memory
+Memcpy from host to GPU execution time: 0.017088 ms
+CUDA Geolocation memory allocation time: 0 s  125215 us
+
+
+Launching parameterPrediction CUDA kernel
+	parameterPrediction execution time: 0.016192 ms
+Launching covariancePrediction CUDA kernel
+	covariancePrediction execution time: 0.013952 ms
+
+
+Launching short matrix inversion for single sigma: inv(48x48) 
+
+Launching matrix multiplication using cuBLAS: 48x2 * 48x48 
+
+Launching matrix multiplication using cuBLAS: 2x48 * 48x2 
+
+Launching matrix inversion using cuBLAS: inv(2x2) 
+
+Launching matrix multiplication using cuBLAS: 2x2 * 48x2 
+
+Launching matrix multiplication using cuBLAS: 2x48 * 48x48 
+
+Calculating measurement error: 48x1 - 48x1 
+	Thread execution time: 0.009600 ms
+
+Launching matrix multiplication using cuBLAS: 2x48 * 48x1 
+
+Updating estimated target location 
+	xhat = 529.856934, 921.732422
+
+Calculating eigenvalues of covariance matrix P using cuSOLVER: eig(2x2)
+
+Calculating 95% semimajor, semiminor ellipse bounds 
+	Thread execution time: 0.010912 ms
+	semimajor = 1950.703491
+	semiminor = 183.470703
+
+CUDA Geolocation execution time: 0 s  32544 us
+
+
+##### Completed CUDA Geo Benchmarking Routine #####
+Memory used:		mixed memory
+Blocks used:		1
+Threads used:		48
+Iterations:		1
+Num measurements:	48
+
+Fastest execution time for entire C/C++ Geo-location algorithm: 0 s, 71 us
+Slowest execution time for entire C/C++ Geo-location algorithm: 0 s, 91 us
+Average execution time for entire C/C++ Geo-location algorithm: 0 s, 468 us
+
+Fastest execution time for entire CUDA Geo-location algorithm: 0 s, 32544 us using 1 blocks and 48 threads
+Slowest execution time for entire CUDA Geo-location algorithm: 0 s, 32958 us using 1 blocks and 6 threads
+Average execution time for entire CUDA Geo-location algorithm: 0 s, 163928 us
+
+Fastest parameterPrediction kernel execution: 0.016192 ms using 1 blocks and 48 threads
+Average parameterPrediction kernel execution: 0.088192 ms
+
+Fastest covariancePrediction kernel execution: 0.013952 ms using 1 blocks and 48 threads
+Average covariancePrediction kernel execution: 0.071584 ms
+
+Fastest subtract kernel execution: 0.009600 ms using 1 blocks and 48 threads
+Average subtract kernel execution: 0.050848 ms
+
+Fastest semiMajMin kernel execution: 0.010848 ms using 1 blocks and 12 threads
+Average semiMajMin kernel execution: 0.055168 ms
+
+
+##### Generating Geo Scenario #####
+##### Executing C/C++ Geo Routine #####
+Predicting next parameter state (h)...
+Predicting next state Covariance (H)...
+Calculating inverse of R ...
+	xhat = 467.791016, 914.889160
+
+Calculating 95% semimajor, semiminor ellipse bounds 
+	semimajor = 1950.482666
+	semiminor = 133.078369
+
+C/C++ Geolocation execution time: 0 s  122 us
+
+
+##### Generating Geo Scenario #####
+
+##### Executing CUDA Geo Benchmarking Routine #####
+Caution, number of measurements is not evenly divisible by maxThreadsPerBlock, could have issues...
+## Testing 1 blocks of 96 threads ##
+
+##### Executing CUDA Geo Routine #####
+Allocating host memory...
+Allocating device memory...
+Copying data from host memory to GPU memory
+Memcpy from host to GPU execution time: 0.017856 ms
+CUDA Geolocation memory allocation time: 0 s  127507 us
+
+
+Launching parameterPrediction CUDA kernel
+	parameterPrediction execution time: 0.016608 ms
+Launching covariancePrediction CUDA kernel
+	covariancePrediction execution time: 0.014496 ms
+
+
+Launching short matrix inversion for single sigma: inv(96x96) 
+
+Launching matrix multiplication using cuBLAS: 96x2 * 96x96 
+
+Launching matrix multiplication using cuBLAS: 2x96 * 96x2 
+
+Launching matrix inversion using cuBLAS: inv(2x2) 
+
+Launching matrix multiplication using cuBLAS: 2x2 * 96x2 
+
+Launching matrix multiplication using cuBLAS: 2x96 * 96x96 
+
+Calculating measurement error: 96x1 - 96x1 
+	Thread execution time: 0.010144 ms
+
+Launching matrix multiplication using cuBLAS: 2x96 * 96x1 
+
+Updating estimated target location 
+	xhat = 467.765137, 914.924561
+
+Calculating eigenvalues of covariance matrix P using cuSOLVER: eig(2x2)
+
+Calculating 95% semimajor, semiminor ellipse bounds 
+	Thread execution time: 0.011392 ms
+	semimajor = 1950.491333
+	semiminor = 133.078888
+
+CUDA Geolocation execution time: 0 s  33235 us
+
+
+##### Completed CUDA Geo Benchmarking Routine #####
+Memory used:		mixed memory
+Blocks used:		1
+Threads used:		96
+Iterations:		1
+Num measurements:	96
+
+Fastest execution time for entire C/C++ Geo-location algorithm: 0 s, 71 us
+Slowest execution time for entire C/C++ Geo-location algorithm: 0 s, 122 us
+Average execution time for entire C/C++ Geo-location algorithm: 0 s, 590 us
+
+Fastest execution time for entire CUDA Geo-location algorithm: 0 s, 32544 us using 1 blocks and 48 threads
+Slowest execution time for entire CUDA Geo-location algorithm: 0 s, 33235 us using 1 blocks and 96 threads
+Average execution time for entire CUDA Geo-location algorithm: 0 s, 197163 us
+
+Fastest parameterPrediction kernel execution: 0.016192 ms using 1 blocks and 48 threads
+Average parameterPrediction kernel execution: 0.104800 ms
+
+Fastest covariancePrediction kernel execution: 0.013952 ms using 1 blocks and 48 threads
+Average covariancePrediction kernel execution: 0.086080 ms
+
+Fastest subtract kernel execution: 0.009600 ms using 1 blocks and 48 threads
+Average subtract kernel execution: 0.060992 ms
+
+Fastest semiMajMin kernel execution: 0.010848 ms using 1 blocks and 12 threads
+Average semiMajMin kernel execution: 0.066560 ms
+
+
+##### Generating Geo Scenario #####
+##### Executing C/C++ Geo Routine #####
+Predicting next parameter state (h)...
+Predicting next state Covariance (H)...
+Calculating inverse of R ...
+	xhat = 434.672607, 910.023926
+
+Calculating 95% semimajor, semiminor ellipse bounds 
+	semimajor = 1950.232300
+	semiminor = 95.353088
+
+C/C++ Geolocation execution time: 0 s  281 us
+
+
+##### Generating Geo Scenario #####
+
+##### Executing CUDA Geo Benchmarking Routine #####
+Caution, number of measurements is not evenly divisible by maxThreadsPerBlock, could have issues...
+## Testing 1 blocks of 192 threads ##
+
+##### Executing CUDA Geo Routine #####
+Allocating host memory...
+Allocating device memory...
+Copying data from host memory to GPU memory
+Memcpy from host to GPU execution time: 0.016480 ms
+CUDA Geolocation memory allocation time: 0 s  126635 us
+
+
+Launching parameterPrediction CUDA kernel
+	parameterPrediction execution time: 0.015904 ms
+Launching covariancePrediction CUDA kernel
+	covariancePrediction execution time: 0.013856 ms
+
+
+Launching short matrix inversion for single sigma: inv(192x192) 
+
+Launching matrix multiplication using cuBLAS: 192x2 * 192x192 
+
+Launching matrix multiplication using cuBLAS: 2x192 * 192x2 
+
+Launching matrix inversion using cuBLAS: inv(2x2) 
+
+Launching matrix multiplication using cuBLAS: 2x2 * 192x2 
+
+Launching matrix multiplication using cuBLAS: 2x192 * 192x192 
+
+Calculating measurement error: 192x1 - 192x1 
+	Thread execution time: 0.010368 ms
+
+Launching matrix multiplication using cuBLAS: 2x192 * 192x1 
+
+Updating estimated target location 
+	xhat = 434.608154, 910.233398
+
+Calculating eigenvalues of covariance matrix P using cuSOLVER: eig(2x2)
+
+Calculating 95% semimajor, semiminor ellipse bounds 
+	Thread execution time: 0.010560 ms
+	semimajor = 1950.235840
+	semiminor = 95.354210
+
+CUDA Geolocation execution time: 0 s  32965 us
+
+
+##### Completed CUDA Geo Benchmarking Routine #####
+Memory used:		mixed memory
+Blocks used:		1
+Threads used:		192
+Iterations:		1
+Num measurements:	192
+
+Fastest execution time for entire C/C++ Geo-location algorithm: 0 s, 71 us
+Slowest execution time for entire C/C++ Geo-location algorithm: 0 s, 281 us
+Average execution time for entire C/C++ Geo-location algorithm: 0 s, 871 us
+
+Fastest execution time for entire CUDA Geo-location algorithm: 0 s, 32544 us using 1 blocks and 48 threads
+Slowest execution time for entire CUDA Geo-location algorithm: 0 s, 32965 us using 1 blocks and 192 threads
+Average execution time for entire CUDA Geo-location algorithm: 0 s, 230128 us
+
+Fastest parameterPrediction kernel execution: 0.015904 ms using 1 blocks and 192 threads
+Average parameterPrediction kernel execution: 0.120704 ms
+
+Fastest covariancePrediction kernel execution: 0.013856 ms using 1 blocks and 192 threads
+Average covariancePrediction kernel execution: 0.099936 ms
+
+Fastest subtract kernel execution: 0.009600 ms using 1 blocks and 48 threads
+Average subtract kernel execution: 0.071360 ms
+
+Fastest semiMajMin kernel execution: 0.010560 ms using 1 blocks and 192 threads
+Average semiMajMin kernel execution: 0.077120 ms
+
+
+##### Generating Geo Scenario #####
+##### Executing C/C++ Geo Routine #####
+Predicting next parameter state (h)...
+Predicting next state Covariance (H)...
+Calculating inverse of R ...
+	xhat = 416.523682, 910.091309
+
+Calculating 95% semimajor, semiminor ellipse bounds 
+	semimajor = 1950.482300
+	semiminor = 67.880478
+
+C/C++ Geolocation execution time: 0 s  661 us
+
+
+##### Generating Geo Scenario #####
+
+##### Executing CUDA Geo Benchmarking Routine #####
+Caution, number of measurements is not evenly divisible by maxThreadsPerBlock, could have issues...
+## Testing 1 blocks of 384 threads ##
+
+##### Executing CUDA Geo Routine #####
+Allocating host memory...
+Allocating device memory...
+Copying data from host memory to GPU memory
+Memcpy from host to GPU execution time: 0.016800 ms
+CUDA Geolocation memory allocation time: 0 s  126794 us
+
+
+Launching parameterPrediction CUDA kernel
+	parameterPrediction execution time: 0.015776 ms
+Launching covariancePrediction CUDA kernel
+	covariancePrediction execution time: 0.014528 ms
+
+
+Launching short matrix inversion for single sigma: inv(384x384) 
+
+Launching matrix multiplication using cuBLAS: 384x2 * 384x384 
+
+Launching matrix multiplication using cuBLAS: 2x384 * 384x2 
+
+Launching matrix inversion using cuBLAS: inv(2x2) 
+
+Launching matrix multiplication using cuBLAS: 2x2 * 384x2 
+
+Launching matrix multiplication using cuBLAS: 2x384 * 384x384 
+
+Calculating measurement error: 384x1 - 384x1 
+	Thread execution time: 0.010592 ms
+
+Launching matrix multiplication using cuBLAS: 2x384 * 384x1 
+
+Updating estimated target location 
+	xhat = 416.440430, 910.300293
+
+Calculating eigenvalues of covariance matrix P using cuSOLVER: eig(2x2)
+
+Calculating 95% semimajor, semiminor ellipse bounds 
+	Thread execution time: 0.011040 ms
+	semimajor = 1950.466553
+	semiminor = 67.881554
+
+CUDA Geolocation execution time: 0 s  33513 us
+
+
+##### Completed CUDA Geo Benchmarking Routine #####
+Memory used:		mixed memory
+Blocks used:		1
+Threads used:		384
+Iterations:		1
+Num measurements:	384
+
+Fastest execution time for entire C/C++ Geo-location algorithm: 0 s, 71 us
+Slowest execution time for entire C/C++ Geo-location algorithm: 0 s, 661 us
+Average execution time for entire C/C++ Geo-location algorithm: 0 s, 1532 us
+
+Fastest execution time for entire CUDA Geo-location algorithm: 0 s, 32544 us using 1 blocks and 48 threads
+Slowest execution time for entire CUDA Geo-location algorithm: 0 s, 33513 us using 1 blocks and 384 threads
+Average execution time for entire CUDA Geo-location algorithm: 0 s, 263641 us
+
+Fastest parameterPrediction kernel execution: 0.015776 ms using 1 blocks and 384 threads
+Average parameterPrediction kernel execution: 0.136480 ms
+
+Fastest covariancePrediction kernel execution: 0.013856 ms using 1 blocks and 192 threads
+Average covariancePrediction kernel execution: 0.114464 ms
+
+Fastest subtract kernel execution: 0.009600 ms using 1 blocks and 48 threads
+Average subtract kernel execution: 0.081952 ms
+
+Fastest semiMajMin kernel execution: 0.010560 ms using 1 blocks and 192 threads
+Average semiMajMin kernel execution: 0.088160 ms
+
+
+##### Generating Geo Scenario #####
+##### Executing C/C++ Geo Routine #####
+Predicting next parameter state (h)...
+Predicting next state Covariance (H)...
+Calculating inverse of R ...
+	xhat = 409.946045, 902.828369
+
+Calculating 95% semimajor, semiminor ellipse bounds 
+	semimajor = 1946.750000
+	semiminor = 48.162712
+
+C/C++ Geolocation execution time: 0 s  2229 us
+
+
+##### Generating Geo Scenario #####
+
+##### Executing CUDA Geo Benchmarking Routine #####
+Caution, number of measurements is not evenly divisible by maxThreadsPerBlock, could have issues...
+## Testing 1 blocks of 768 threads ##
+
+##### Executing CUDA Geo Routine #####
+Allocating host memory...
+Allocating device memory...
+Copying data from host memory to GPU memory
+Memcpy from host to GPU execution time: 0.016928 ms
+CUDA Geolocation memory allocation time: 0 s  127056 us
+
+
+Launching parameterPrediction CUDA kernel
+	parameterPrediction execution time: 0.015872 ms
+Launching covariancePrediction CUDA kernel
+	covariancePrediction execution time: 0.015264 ms
+
+
+Launching short matrix inversion for single sigma: inv(768x768) 
+
+Launching matrix multiplication using cuBLAS: 768x2 * 768x768 
+
+Launching matrix multiplication using cuBLAS: 2x768 * 768x2 
+
+Launching matrix inversion using cuBLAS: inv(2x2) 
+
+Launching matrix multiplication using cuBLAS: 2x2 * 768x2 
+
+Launching matrix multiplication using cuBLAS: 2x768 * 768x768 
+
+Calculating measurement error: 768x1 - 768x1 
+	Thread execution time: 0.009856 ms
+
+Launching matrix multiplication using cuBLAS: 2x768 * 768x1 
+
+Updating estimated target location 
+	xhat = 409.528809, 903.688721
+
+Calculating eigenvalues of covariance matrix P using cuSOLVER: eig(2x2)
+
+Calculating 95% semimajor, semiminor ellipse bounds 
+	Thread execution time: 0.011136 ms
+	semimajor = 1946.748535
+	semiminor = 48.162849
+
+CUDA Geolocation execution time: 0 s  35412 us
+
+
+##### Completed CUDA Geo Benchmarking Routine #####
+Memory used:		mixed memory
+Blocks used:		1
+Threads used:		768
+Iterations:		1
+Num measurements:	768
+
+Fastest execution time for entire C/C++ Geo-location algorithm: 0 s, 71 us
+Slowest execution time for entire C/C++ Geo-location algorithm: 0 s, 2229 us
+Average execution time for entire C/C++ Geo-location algorithm: 0 s, 3761 us
+
+Fastest execution time for entire CUDA Geo-location algorithm: 0 s, 32544 us using 1 blocks and 48 threads
+Slowest execution time for entire CUDA Geo-location algorithm: 0 s, 35412 us using 1 blocks and 768 threads
+Average execution time for entire CUDA Geo-location algorithm: 0 s, 299053 us
+
+Fastest parameterPrediction kernel execution: 0.015776 ms using 1 blocks and 384 threads
+Average parameterPrediction kernel execution: 0.152352 ms
+
+Fastest covariancePrediction kernel execution: 0.013856 ms using 1 blocks and 192 threads
+Average covariancePrediction kernel execution: 0.129728 ms
+
+Fastest subtract kernel execution: 0.009600 ms using 1 blocks and 48 threads
+Average subtract kernel execution: 0.091808 ms
+
+Fastest semiMajMin kernel execution: 0.010560 ms using 1 blocks and 192 threads
+Average semiMajMin kernel execution: 0.099296 ms
+
+
+##### Generating Geo Scenario #####
+##### Executing C/C++ Geo Routine #####
+Predicting next parameter state (h)...
+Predicting next state Covariance (H)...
+Calculating inverse of R ...
+	xhat = 379.296143, 974.442871
+
+Calculating 95% semimajor, semiminor ellipse bounds 
+	semimajor = 1956.359131
+	semiminor = 34.117390
+
+C/C++ Geolocation execution time: 0 s  8963 us
+
+
+##### Generating Geo Scenario #####
+
+##### Executing CUDA Geo Benchmarking Routine #####
+Caution, number of measurements is not evenly divisible by maxThreadsPerBlock, could have issues...
+## Testing 2 blocks of 768 threads ##
+
+##### Executing CUDA Geo Routine #####
+Allocating host memory...
+Allocating device memory...
+Copying data from host memory to GPU memory
+Memcpy from host to GPU execution time: 0.018528 ms
+CUDA Geolocation memory allocation time: 0 s  125758 us
+
+
+Launching parameterPrediction CUDA kernel
+	parameterPrediction execution time: 0.016128 ms
+Launching covariancePrediction CUDA kernel
+	covariancePrediction execution time: 0.015360 ms
+
+
+Launching short matrix inversion for single sigma: inv(1536x1536) 
+
+Launching matrix multiplication using cuBLAS: 1536x2 * 1536x1536 
+
+Launching matrix multiplication using cuBLAS: 2x1536 * 1536x2 
+
+Launching matrix inversion using cuBLAS: inv(2x2) 
+
+Launching matrix multiplication using cuBLAS: 2x2 * 1536x2 
+
+Launching matrix multiplication using cuBLAS: 2x1536 * 1536x1536 
+
+Calculating measurement error: 1536x1 - 1536x1 
+	Thread execution time: 0.018112 ms
+
+Launching matrix multiplication using cuBLAS: 2x1536 * 1536x1 
+
+Updating estimated target location 
+	xhat = 378.901855, 975.662598
+
+Calculating eigenvalues of covariance matrix P using cuSOLVER: eig(2x2)
+
+Calculating 95% semimajor, semiminor ellipse bounds 
+	Thread execution time: 0.010560 ms
+	semimajor = 1956.364014
+	semiminor = 34.113796
+
+CUDA Geolocation execution time: 0 s  40976 us
+
+
+##### Completed CUDA Geo Benchmarking Routine #####
+Memory used:		mixed memory
+Blocks used:		2
+Threads used:		768
+Iterations:		1
+Num measurements:	1536
+
+Fastest execution time for entire C/C++ Geo-location algorithm: 0 s, 71 us
+Slowest execution time for entire C/C++ Geo-location algorithm: 0 s, 8963 us
+Average execution time for entire C/C++ Geo-location algorithm: 0 s, 12724 us
+
+Fastest execution time for entire CUDA Geo-location algorithm: 0 s, 32544 us using 1 blocks and 48 threads
+Slowest execution time for entire CUDA Geo-location algorithm: 0 s, 40976 us using 2 blocks and 768 threads
+Average execution time for entire CUDA Geo-location algorithm: 0 s, 340029 us
+
+Fastest parameterPrediction kernel execution: 0.015776 ms using 1 blocks and 384 threads
+Average parameterPrediction kernel execution: 0.168480 ms
+
+Fastest covariancePrediction kernel execution: 0.013856 ms using 1 blocks and 192 threads
+Average covariancePrediction kernel execution: 0.145088 ms
+
+Fastest subtract kernel execution: 0.009600 ms using 1 blocks and 48 threads
+Average subtract kernel execution: 0.109920 ms
+
+Fastest semiMajMin kernel execution: 0.010560 ms using 1 blocks and 192 threads
+Average semiMajMin kernel execution: 0.109856 ms
+
+
+##### Generating Geo Scenario #####
+##### Executing C/C++ Geo Routine #####
+Predicting next parameter state (h)...
+Predicting next state Covariance (H)...
+Calculating inverse of R ...
+	xhat = 448.892578, 775.029785
+
+Calculating 95% semimajor, semiminor ellipse bounds 
+	semimajor = 1928.714111
+	semiminor = 24.141407
+
+C/C++ Geolocation execution time: 0 s  35466 us
+
+
+##### Generating Geo Scenario #####
+
+##### Executing CUDA Geo Benchmarking Routine #####
+## Testing 3 blocks of 1024 threads ##
+
+##### Executing CUDA Geo Routine #####
+Allocating host memory...
+Allocating device memory...
+Copying data from host memory to GPU memory
+Memcpy from host to GPU execution time: 0.019232 ms
+CUDA Geolocation memory allocation time: 0 s  126882 us
+
+
+Launching parameterPrediction CUDA kernel
+	parameterPrediction execution time: 0.016256 ms
+Launching covariancePrediction CUDA kernel
+	covariancePrediction execution time: 0.016064 ms
+
+
+Launching short matrix inversion for single sigma: inv(3072x3072) 
+
+Launching matrix multiplication using cuBLAS: 3072x2 * 3072x3072 
+
+Launching matrix multiplication using cuBLAS: 2x3072 * 3072x2 
+
+Launching matrix inversion using cuBLAS: inv(2x2) 
+
+Launching matrix multiplication using cuBLAS: 2x2 * 3072x2 
+
+Launching matrix multiplication using cuBLAS: 2x3072 * 3072x3072 
+
+Calculating measurement error: 3072x1 - 3072x1 
+	Thread execution time: 0.009536 ms
+
+Launching matrix multiplication using cuBLAS: 2x3072 * 3072x1 
+
+Updating estimated target location 
+	xhat = 447.831787, 778.102539
+
+Calculating eigenvalues of covariance matrix P using cuSOLVER: eig(2x2)
+
+Calculating 95% semimajor, semiminor ellipse bounds 
+	Thread execution time: 0.004480 ms
+	semimajor = 1928.739014
+	semiminor = 24.144455
+
+CUDA Geolocation execution time: 0 s  62014 us
+
+
+##### Completed CUDA Geo Benchmarking Routine #####
+Memory used:		mixed memory
+Blocks used:		3
+Threads used:		1024
+Iterations:		1
+Num measurements:	3072
+
+Fastest execution time for entire C/C++ Geo-location algorithm: 0 s, 71 us
+Slowest execution time for entire C/C++ Geo-location algorithm: 0 s, 35466 us
+Average execution time for entire C/C++ Geo-location algorithm: 0 s, 48190 us
+
+Fastest execution time for entire CUDA Geo-location algorithm: 0 s, 32544 us using 1 blocks and 48 threads
+Slowest execution time for entire CUDA Geo-location algorithm: 0 s, 62014 us using 3 blocks and 1024 threads
+Average execution time for entire CUDA Geo-location algorithm: 0 s, 402043 us
+
+Fastest parameterPrediction kernel execution: 0.015776 ms using 1 blocks and 384 threads
+Average parameterPrediction kernel execution: 0.184736 ms
+
+Fastest covariancePrediction kernel execution: 0.013856 ms using 1 blocks and 192 threads
+Average covariancePrediction kernel execution: 0.161152 ms
+
+Fastest subtract kernel execution: 0.009536 ms using 3 blocks and 1024 threads
+Average subtract kernel execution: 0.119456 ms
+
+Fastest semiMajMin kernel execution: 0.004480 ms using 3 blocks and 1024 threads
+Average semiMajMin kernel execution: 0.114336 ms
+
+
+##### Generating Geo Scenario #####
+##### Executing C/C++ Geo Routine #####
+Predicting next parameter state (h)...
+Predicting next state Covariance (H)...
+Calculating inverse of R ...
+	xhat = 884.940674, -437.180176
+
+Calculating 95% semimajor, semiminor ellipse bounds 
+	semimajor = 1844.655396
+	semiminor = 17.080641
+
+C/C++ Geolocation execution time: 0 s  157128 us
+
+
+##### Generating Geo Scenario #####
+
+##### Executing CUDA Geo Benchmarking Routine #####
+## Testing 6 blocks of 1024 threads ##
+
+##### Executing CUDA Geo Routine #####
+Allocating host memory...
+Allocating device memory...
+Copying data from host memory to GPU memory
+Memcpy from host to GPU execution time: 0.020224 ms
+CUDA Geolocation memory allocation time: 0 s  126794 us
+
+
+Launching parameterPrediction CUDA kernel
+	parameterPrediction execution time: 0.016416 ms
+Launching covariancePrediction CUDA kernel
+	covariancePrediction execution time: 0.015296 ms
+
+
+Launching short matrix inversion for single sigma: inv(6144x6144) 
+
+Launching matrix multiplication using cuBLAS: 6144x2 * 6144x6144 
+
+Launching matrix multiplication using cuBLAS: 2x6144 * 6144x2 
+
+Launching matrix inversion using cuBLAS: inv(2x2) 
+
+Launching matrix multiplication using cuBLAS: 2x2 * 6144x2 
+
+Launching matrix multiplication using cuBLAS: 2x6144 * 6144x6144 
+
+Calculating measurement error: 6144x1 - 6144x1 
+	Thread execution time: 0.019584 ms
+
+Launching matrix multiplication using cuBLAS: 2x6144 * 6144x1 
+
+Updating estimated target location 
+	xhat = 883.426758, -431.413086
+
+Calculating eigenvalues of covariance matrix P using cuSOLVER: eig(2x2)
+
+Calculating 95% semimajor, semiminor ellipse bounds 
+	Thread execution time: 0.011136 ms
+	semimajor = 1844.695557
+	semiminor = 17.076393
+
+CUDA Geolocation execution time: 0 s  144550 us
+
+
+##### Completed CUDA Geo Benchmarking Routine #####
+Memory used:		mixed memory
+Blocks used:		6
+Threads used:		1024
+Iterations:		1
+Num measurements:	6144
+
+Fastest execution time for entire C/C++ Geo-location algorithm: 0 s, 71 us
+Slowest execution time for entire C/C++ Geo-location algorithm: 0 s, 157128 us
+Average execution time for entire C/C++ Geo-location algorithm: 0 s, 205318 us
+
+Fastest execution time for entire CUDA Geo-location algorithm: 0 s, 32544 us using 1 blocks and 48 threads
+Slowest execution time for entire CUDA Geo-location algorithm: 0 s, 144550 us using 6 blocks and 1024 threads
+Average execution time for entire CUDA Geo-location algorithm: 0 s, 546593 us
+
+Fastest parameterPrediction kernel execution: 0.015776 ms using 1 blocks and 384 threads
+Average parameterPrediction kernel execution: 0.201152 ms
+
+Fastest covariancePrediction kernel execution: 0.013856 ms using 1 blocks and 192 threads
+Average covariancePrediction kernel execution: 0.176448 ms
+
+Fastest subtract kernel execution: 0.009536 ms using 3 blocks and 1024 threads
+Average subtract kernel execution: 0.139040 ms
+
+Fastest semiMajMin kernel execution: 0.004480 ms using 3 blocks and 1024 threads
+Average semiMajMin kernel execution: 0.125472 ms
+
+
+##### Generating Geo Scenario #####
+##### Executing C/C++ Geo Routine #####
+Predicting next parameter state (h)...
+Predicting next state Covariance (H)...
+Calculating inverse of R ...
+	xhat = 1277.187012, -1527.086426
+
+Calculating 95% semimajor, semiminor ellipse bounds 
+	semimajor = 1754.390869
+	semiminor = 12.084256
+
+C/C++ Geolocation execution time: 0 s  627474 us
+
+
+##### Generating Geo Scenario #####
+
+##### Executing CUDA Geo Benchmarking Routine #####
+## Testing 12 blocks of 1024 threads ##
+
+##### Executing CUDA Geo Routine #####
+Allocating host memory...
+Allocating device memory...
+Copying data from host memory to GPU memory
+Memcpy from host to GPU execution time: 0.026944 ms
+CUDA Geolocation memory allocation time: 0 s  125421 us
+
+
+Launching parameterPrediction CUDA kernel
+	parameterPrediction execution time: 0.016960 ms
+Launching covariancePrediction CUDA kernel
+	covariancePrediction execution time: 0.018304 ms
+
+
+Launching short matrix inversion for single sigma: inv(12288x12288) 
+
+Launching matrix multiplication using cuBLAS: 12288x2 * 12288x12288 
+
+Launching matrix multiplication using cuBLAS: 2x12288 * 12288x2 
+
+Launching matrix inversion using cuBLAS: inv(2x2) 
+
+Launching matrix multiplication using cuBLAS: 2x2 * 12288x2 
+
+Launching matrix multiplication using cuBLAS: 2x12288 * 12288x12288 
+
+Calculating measurement error: 12288x1 - 12288x1 
+	Thread execution time: 0.004768 ms
+
+Launching matrix multiplication using cuBLAS: 2x12288 * 12288x1 
+
+Updating estimated target location 
+	xhat = -1039.407227, 4894.353516
+
+Calculating eigenvalues of covariance matrix P using cuSOLVER: eig(2x2)
+
+Calculating 95% semimajor, semiminor ellipse bounds 
+	Thread execution time: 0.011168 ms
+	semimajor = 3015.838867
+	semiminor = 12.076339
+
+CUDA Geolocation execution time: 0 s  465849 us
+
+
+##### Completed CUDA Geo Benchmarking Routine #####
+Memory used:		mixed memory
+Blocks used:		12
+Threads used:		1024
+Iterations:		1
+Num measurements:	12288
+
+Fastest execution time for entire C/C++ Geo-location algorithm: 0 s, 71 us
+Slowest execution time for entire C/C++ Geo-location algorithm: 0 s, 627474 us
+Average execution time for entire C/C++ Geo-location algorithm: 0 s, 832792 us
+
+Fastest execution time for entire CUDA Geo-location algorithm: 0 s, 32544 us using 1 blocks and 48 threads
+Slowest execution time for entire CUDA Geo-location algorithm: 0 s, 465849 us using 12 blocks and 1024 threads
+Average execution time for entire CUDA Geo-location algorithm: 0 s, 1012442 us
+
+Fastest parameterPrediction kernel execution: 0.015776 ms using 1 blocks and 384 threads
+Average parameterPrediction kernel execution: 0.218112 ms
+
+Fastest covariancePrediction kernel execution: 0.013856 ms using 1 blocks and 192 threads
+Average covariancePrediction kernel execution: 0.194752 ms
+
+Fastest subtract kernel execution: 0.004768 ms using 12 blocks and 1024 threads
+Average subtract kernel execution: 0.143808 ms
+
+Fastest semiMajMin kernel execution: 0.004480 ms using 3 blocks and 1024 threads
+Average semiMajMin kernel execution: 0.136640 ms
 
 
 Done

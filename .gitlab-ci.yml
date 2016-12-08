@@ -12,7 +12,7 @@ build:
   # before_script: 
   #   - apt update && apt -y install make autoconf 
   script: 
-    - nvcc cuGEO.cu kernels.cu -o cuGEO -lcublas -lcusolver -llapacke -llapack -lblas -lsatlas
+    - nvcc cuGEO.cu kernels.cu -o cuGEO -lcublas -lcusolver -llapacke -llapack -lblas -lpython2.7 -lsatlas
   artifacts:
     paths:
       - cuGEO

@@ -3,7 +3,7 @@ cuGEO is a CUDA implementation of a Geo-location algorithm using linear/non-line
 
 To build the project:
 	
-	nvcc cuGEO.cu kernels.cu -o cuGEO -lcublas -lcusolver -llapacke -llapack -lblas
+	nvcc cuGEO.cu kernels.cu -o cuGEO -lcublas -lcusolver -llapacke -llapack -lblas -lpython2.7 -lsatlas
 
 To run the program with default settings and all printed output:
 
@@ -14,14 +14,8 @@ This will use a single target location and three Direction of Arrival (DOA) meas
 
 #### TODO ####
 
-* add argument'--file' which reads a comma delimited file for one measurement per line in the format "<locationx>,<locationy>,<DOA>,<sigma>\n". When this input is used, the number of measurements in the file will be the total number of measurements processed by the geo-location algorithm, unless the '--measurements' arg is set which will override the total (up to the file size but not more).
-
-* get accurate benchmark for total CUDA algorithm to compare to when updating 
-* scrub algorithm for unnecessary data transfers between host and device
 * add "pinned" host memory allocations to improve data transfers
-* finish C/C++ implementation
 * fix block/thread user choice
-* improve matrix inversion routine (or use alternate means)
 * loop ILS for a count/error amount 
 
 * add streams to perform mutually exclusive kernel operations simultaneously/asynchronously
@@ -147,7 +141,5 @@ which will run the entire CUDA Geo program using shared memory kernels, and then
 Adds utilization of GPU global memory.
 
 
-#### Module 10 ####
-Adds utilization of multiple GPU's.
 
 
